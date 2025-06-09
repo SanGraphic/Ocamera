@@ -343,6 +343,8 @@
       z-index: 1000;
       display: none;
       flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
       opacity: 0;
       transition: opacity 0.3s ease;
     }
@@ -530,7 +532,7 @@
       background: rgba(0,0,0,0.95);
       z-index: 3000;
       display: none;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: center;
       transition: opacity 0.3s;
     }
@@ -541,7 +543,7 @@
     .settings-content {
       width: 100%;
       max-width: 480px;
-      border-radius: 24px 24px 0 0;
+      border-radius: 0 0 24px 24px;
       background: #181818;
       padding: 32px 0 16px 0;
       box-shadow: 0 -2px 24px rgba(0,0,0,0.4);
@@ -593,6 +595,10 @@
     .settings-icons {
       margin-top: 16px;
       gap: 12px;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      width: 100%;
     }
     .settings-icon-btn {
       display: flex;
@@ -607,6 +613,7 @@
       border-radius: 12px;
       cursor: pointer;
       transition: background 0.2s, color 0.2s;
+      min-width: 90px;
     }
     .settings-icon-btn.active {
       background: orange;
@@ -623,7 +630,7 @@
       background: rgba(0,0,0,0.97);
       z-index: 4000;
       display: none;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: center;
       transition: opacity 0.3s;
     }
@@ -634,7 +641,7 @@
     .device-settings-content {
       width: 100%;
       max-width: 480px;
-      border-radius: 24px 24px 0 0;
+      border-radius: 0 0 24px 24px;
       background: #181818;
       padding: 32px 0 16px 0;
       box-shadow: 0 -2px 24px rgba(0,0,0,0.4);
@@ -698,6 +705,9 @@
       width: 18px;
       height: 18px;
       accent-color: orange;
+    }
+    video#viewfinder.mirrored {
+      transform: translate(-50%, -50%) scaleX(-1) !important;
     }
   </style>
 </head>
@@ -872,12 +882,11 @@
         // Get zoom capabilities and max resolution
         const videoTrack = currentStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
-        
+        const supportedFeatures = [];
         // Try to get the actual max resolution
         if (capabilities.width && capabilities.height) {
           const maxWidth = capabilities.width.max;
           const maxHeight = capabilities.height.max;
-          // Only restart if not already at max
           const settings = videoTrack.getSettings();
           if ((settings.width !== maxWidth || settings.height !== maxHeight) && maxWidth && maxHeight) {
             currentStream.getTracks().forEach(track => track.stop());
@@ -892,23 +901,50 @@
             });
             document.getElementById('viewfinder').srcObject = currentStream;
           }
-          // Show resolution in UI
           showResolution(maxWidth, maxHeight);
         } else {
-          // Show whatever we got
           const settings = videoTrack.getSettings();
           showResolution(settings.width, settings.height);
         }
+        // Try to set best available camera features
+        if (capabilities.focusMode && capabilities.focusMode.length) {
+          supportedFeatures.push('Focus: ' + capabilities.focusMode.join('/'));
+          if (capabilities.focusMode.includes('continuous')) {
+            await videoTrack.applyConstraints({advanced: [{focusMode: 'continuous'}]});
+          } else if (capabilities.focusMode.includes('auto')) {
+            await videoTrack.applyConstraints({advanced: [{focusMode: 'auto'}]});
+          }
+        }
+        if (capabilities.exposureMode && capabilities.exposureMode.length) {
+          supportedFeatures.push('Exposure: ' + capabilities.exposureMode.join('/'));
+          if (capabilities.exposureMode.includes('continuous')) {
+            await videoTrack.applyConstraints({advanced: [{exposureMode: 'continuous'}]});
+          } else if (capabilities.exposureMode.includes('auto')) {
+            await videoTrack.applyConstraints({advanced: [{exposureMode: 'auto'}]});
+          }
+        }
+        if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.length) {
+          supportedFeatures.push('WB: ' + capabilities.whiteBalanceMode.join('/'));
+          if (capabilities.whiteBalanceMode.includes('continuous')) {
+            await videoTrack.applyConstraints({advanced: [{whiteBalanceMode: 'continuous'}]});
+          } else if (capabilities.whiteBalanceMode.includes('auto')) {
+            await videoTrack.applyConstraints({advanced: [{whiteBalanceMode: 'auto'}]});
+          }
+        }
+        if (capabilities.torch) {
+          supportedFeatures.push('Torch');
+        }
+        // OIS is not exposed in web APIs yet
+        // Show supported features in the UI
+        showSupportedFeatures(supportedFeatures);
         
         if (capabilities.zoom) {
-          // Device supports optical zoom
           isDigitalZoom = false;
           minZoom = capabilities.zoom.min;
           maxZoom = capabilities.zoom.max;
-          zoomStep = (maxZoom - minZoom) / 10; // Divide range into 10 steps
+          zoomStep = (maxZoom - minZoom) / 10;
           updateZoomUI();
         } else {
-          // Fallback to digital zoom
           isDigitalZoom = true;
           minZoom = 1;
           maxZoom = 6;
@@ -916,7 +952,6 @@
           updateZoomUI();
         }
       } catch (e) {
-        // fallback: try without facingMode
         if (deviceId) {
           constraints.video = { deviceId: { exact: deviceId } };
         } else {
@@ -925,13 +960,11 @@
         try {
           currentStream = await navigator.mediaDevices.getUserMedia(constraints);
           document.getElementById('viewfinder').srcObject = currentStream;
-          
-          // Get zoom capabilities for fallback
           const videoTrack = currentStream.getVideoTracks()[0];
           const capabilities = videoTrack.getCapabilities();
           const settings = videoTrack.getSettings();
           showResolution(settings.width, settings.height);
-          
+          showSupportedFeatures([]);
           if (capabilities.zoom) {
             isDigitalZoom = false;
             minZoom = capabilities.zoom.min;
@@ -987,6 +1020,18 @@
       spans.forEach(span => zoomBar.appendChild(span));
     }
 
+    // Helper to update viewfinder transform (centering, zoom, mirroring)
+    function updateViewfinderTransform() {
+      const video = document.getElementById('viewfinder');
+      let scale = currentZoom || 1;
+      let mirrored = false;
+      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
+      if (cameraSettings[currentDeviceId] && cameraSettings[currentDeviceId].mirrored) mirrored = true;
+      let transform = `translate(-50%, -50%) scale(${scale})`;
+      if (mirrored) transform += ' scaleX(-1)';
+      video.style.transform = transform;
+    }
+
     // Apply zoom
     async function applyZoom(zoom) {
       if (zoom < minZoom || zoom > maxZoom) return;
@@ -1003,11 +1048,8 @@
         }
       } else {
         // Digital zoom fallback
-        const video = document.getElementById('viewfinder');
-        video.style.transform = `translate(-50%, -50%) scale(${zoom})`;
         currentZoom = zoom;
       }
-      
       // Update UI without causing layout shifts
       requestAnimationFrame(() => {
         document.querySelectorAll('#zoom-bar span').forEach(span => {
@@ -1017,6 +1059,7 @@
             span.classList.add('active');
           }
         });
+        updateViewfinderTransform();
       });
     }
 
@@ -1148,7 +1191,20 @@
         sw = zoomedW;
         sh = zoomedH;
       }
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+      // Mirrored: flip canvas horizontally if needed
+      let mirrored = false;
+      const deviceId = currentDeviceId;
+      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
+      if (cameraSettings[deviceId] && cameraSettings[deviceId].mirrored) mirrored = true;
+      if (mirrored) {
+        ctx.save();
+        ctx.translate(outW, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+        ctx.restore();
+      } else {
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+      }
       canvas.toBlob(blob => {
         photoBlob = blob;
         addToRecents(blob);
@@ -1175,7 +1231,31 @@
       await switchCamera();
     });
 
-    // On load, start camera
+    // On app start, load settings and apply to camera
+    async function applyCameraSettings(deviceId) {
+      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
+      const settings = cameraSettings[deviceId];
+      if (!settings) return;
+      // Apply mode, resolution, mirrored
+      let constraints = {
+        video: {
+          deviceId: { exact: deviceId }
+        },
+        audio: false
+      };
+      if (settings.mode) constraints.video.facingMode = { exact: settings.mode };
+      if (settings.resolution) {
+        const [w, h] = settings.resolution.split('x').map(Number);
+        constraints.video.width = { exact: w };
+        constraints.video.height = { exact: h };
+      }
+      // Start camera with these constraints
+      await startCamera(deviceId, settings.mode || undefined);
+      // Update viewfinder transform for mirroring
+      updateViewfinderTransform();
+    }
+
+    // On app start, load settings and apply to camera
     window.onload = async () => {
       await getCameras();
       if (devices.length > 0) {
@@ -1184,6 +1264,7 @@
       } else {
         await startCamera();
       }
+      updateViewfinderTransform();
     };
 
     // Function to add a photo to recents
@@ -1491,34 +1572,24 @@
       settingsModal.classList.add('active');
     });
 
-    // On app start, load settings and apply to camera
-    async function applyCameraSettings(deviceId) {
-      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
-      const settings = cameraSettings[deviceId];
-      if (!settings) return;
-      // Apply mode, resolution, mirrored
-      let constraints = {
-        video: {
-          deviceId: { exact: deviceId }
-        },
-        audio: false
-      };
-      if (settings.mode) constraints.video.facingMode = { exact: settings.mode };
-      if (settings.resolution) {
-        const [w, h] = settings.resolution.split('x').map(Number);
-        constraints.video.width = { exact: w };
-        constraints.video.height = { exact: h };
+    // Show supported features in UI
+    function showSupportedFeatures(features) {
+      let featDiv = document.getElementById('camera-features');
+      if (!featDiv) {
+        featDiv = document.createElement('div');
+        featDiv.id = 'camera-features';
+        featDiv.style.position = 'absolute';
+        featDiv.style.bottom = '40px';
+        featDiv.style.right = '16px';
+        featDiv.style.background = 'rgba(0,0,0,0.7)';
+        featDiv.style.color = '#fff';
+        featDiv.style.fontSize = '0.95rem';
+        featDiv.style.padding = '3px 10px';
+        featDiv.style.borderRadius = '8px';
+        featDiv.style.zIndex = '100';
+        document.querySelector('.viewfinder-container').appendChild(featDiv);
       }
-      // Start camera with these constraints
-      await startCamera(deviceId, settings.mode || undefined);
-      // Mirrored: set a class on video
-      const video = document.getElementById('viewfinder');
-      if (settings.mirrored) {
-        video.style.transform += ' scaleX(-1)';
-      } else {
-        // Remove mirroring if present
-        video.style.transform = video.style.transform.replace(' scaleX(-1)', '');
-      }
+      featDiv.textContent = features.length ? 'Features: ' + features.join(', ') : '';
     }
   </script>
 </body>
