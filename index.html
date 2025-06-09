@@ -766,8 +766,8 @@
         video: {
           facingMode: deviceId ? undefined : { exact: facing },
           deviceId: deviceId ? { exact: deviceId } : undefined,
-          width: { ideal: 9999, max: 9999 },
-          height: { ideal: 9999, max: 9999 }
+          width: { ideal: 4096 },
+          height: { ideal: 2160 }
         },
         audio: false
       };
@@ -775,16 +775,17 @@
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         document.getElementById('viewfinder').srcObject = currentStream;
         
-        // Get zoom capabilities
+        // Get zoom capabilities and max resolution
         const videoTrack = currentStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
         
         // Try to get the actual max resolution
         if (capabilities.width && capabilities.height) {
-          // Restart stream with max resolution
           const maxWidth = capabilities.width.max;
           const maxHeight = capabilities.height.max;
-          if (maxWidth && maxHeight) {
+          // Only restart if not already at max
+          const settings = videoTrack.getSettings();
+          if ((settings.width !== maxWidth || settings.height !== maxHeight) && maxWidth && maxHeight) {
             currentStream.getTracks().forEach(track => track.stop());
             currentStream = await navigator.mediaDevices.getUserMedia({
               video: {
@@ -797,6 +798,12 @@
             });
             document.getElementById('viewfinder').srcObject = currentStream;
           }
+          // Show resolution in UI
+          showResolution(maxWidth, maxHeight);
+        } else {
+          // Show whatever we got
+          const settings = videoTrack.getSettings();
+          showResolution(settings.width, settings.height);
         }
         
         if (capabilities.zoom) {
@@ -828,6 +835,8 @@
           // Get zoom capabilities for fallback
           const videoTrack = currentStream.getVideoTracks()[0];
           const capabilities = videoTrack.getCapabilities();
+          const settings = videoTrack.getSettings();
+          showResolution(settings.width, settings.height);
           
           if (capabilities.zoom) {
             isDigitalZoom = false;
@@ -1254,6 +1263,31 @@
     }
     // Remove old timer button
     document.getElementById('timer-btn').style.display = 'none';
+
+    // Show resolution in UI
+    function showResolution(w, h) {
+      let resDiv = document.getElementById('camera-resolution');
+      if (!resDiv) {
+        resDiv = document.createElement('div');
+        resDiv.id = 'camera-resolution';
+        resDiv.style.position = 'absolute';
+        resDiv.style.bottom = '8px';
+        resDiv.style.right = '16px';
+        resDiv.style.background = 'rgba(0,0,0,0.7)';
+        resDiv.style.color = '#fff';
+        resDiv.style.fontSize = '1rem';
+        resDiv.style.padding = '4px 10px';
+        resDiv.style.borderRadius = '8px';
+        resDiv.style.zIndex = '100';
+        document.querySelector('.viewfinder-container').appendChild(resDiv);
+      }
+      if (w && h) {
+        const mp = (w * h / 1e6).toFixed(1);
+        resDiv.textContent = `${w} x ${h} (${mp} MP)`;
+      } else {
+        resDiv.textContent = '';
+      }
+    }
   </script>
 </body>
 </html>
