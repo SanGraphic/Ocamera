@@ -748,6 +748,8 @@
     let isDigitalZoom = false;
     let recentPhotos = [];
     let selectedPhoto = null;
+    let aspectRatio = '4:3';
+    let timerSetting = 'off';
 
     // Get all video input devices
     async function getCameras() {
@@ -764,8 +766,8 @@
         video: {
           facingMode: deviceId ? undefined : { exact: facing },
           deviceId: deviceId ? { exact: deviceId } : undefined,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 9999, max: 9999 },
+          height: { ideal: 9999, max: 9999 }
         },
         audio: false
       };
@@ -776,6 +778,26 @@
         // Get zoom capabilities
         const videoTrack = currentStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
+        
+        // Try to get the actual max resolution
+        if (capabilities.width && capabilities.height) {
+          // Restart stream with max resolution
+          const maxWidth = capabilities.width.max;
+          const maxHeight = capabilities.height.max;
+          if (maxWidth && maxHeight) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: deviceId ? undefined : { exact: facing },
+                deviceId: deviceId ? { exact: deviceId } : undefined,
+                width: { exact: maxWidth },
+                height: { exact: maxHeight }
+              },
+              audio: false
+            });
+            document.getElementById('viewfinder').srcObject = currentStream;
+          }
+        }
         
         if (capabilities.zoom) {
           // Device supports optical zoom
@@ -956,41 +978,78 @@
     // Take photo
     function takePhoto() {
       const video = document.getElementById('viewfinder');
+      // Always use the full video resolution
+      const videoW = video.videoWidth;
+      const videoH = video.videoHeight;
+      let outW = videoW;
+      let outH = videoH;
+      // Adjust for aspect ratio selection
+      if (aspectRatio === '1:1') {
+        const minDim = Math.min(videoW, videoH);
+        outW = outH = minDim;
+      } else if (aspectRatio === '16:9') {
+        if (videoW / videoH > 16/9) {
+          outH = videoH;
+          outW = Math.round(videoH * 16 / 9);
+        } else {
+          outW = videoW;
+          outH = Math.round(videoW * 9 / 16);
+        }
+      } else if (aspectRatio === '4:3') {
+        if (videoW / videoH > 4/3) {
+          outH = videoH;
+          outW = Math.round(videoH * 4 / 3);
+        } else {
+          outW = videoW;
+          outH = Math.round(videoW * 3 / 4);
+        }
+      } // else 'full' uses full videoW/videoH
       const canvas = document.createElement('canvas');
-      const container = video.parentElement;
-      const containerRect = container.getBoundingClientRect();
-      
-      // Set canvas size to match video's aspect ratio
-      const aspectRatio = video.videoWidth / video.videoHeight;
-      canvas.width = containerRect.width;
-      canvas.height = containerRect.width / aspectRatio;
-      
+      canvas.width = outW;
+      canvas.height = outH;
       const ctx = canvas.getContext('2d');
-      
-      if (isDigitalZoom && currentZoom !== 1) {
-        // Calculate the scaled dimensions
-        const scale = currentZoom;
-        
-        // Calculate the source rectangle to capture the center portion
-        const sourceWidth = video.videoWidth / scale;
-        const sourceHeight = video.videoHeight / scale;
-        const sourceX = (video.videoWidth - sourceWidth) / 2;
-        const sourceY = (video.videoHeight - sourceHeight) / 2;
-        
-        // Draw the zoomed portion
-        ctx.drawImage(
-          video,
-          sourceX, sourceY, sourceWidth, sourceHeight,  // Source rectangle
-          0, 0, canvas.width, canvas.height            // Destination rectangle
-        );
-      } else {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Calculate cropping for aspect ratio
+      let sx = 0, sy = 0, sw = videoW, sh = videoH;
+      if (aspectRatio === '1:1') {
+        if (videoW > videoH) {
+          sx = Math.floor((videoW - videoH) / 2);
+          sw = sh = videoH;
+        } else {
+          sy = Math.floor((videoH - videoW) / 2);
+          sw = sh = videoW;
+        }
+      } else if (aspectRatio === '16:9') {
+        if (videoW / videoH > 16/9) {
+          sx = Math.floor((videoW - videoH * 16 / 9) / 2);
+          sw = Math.floor(videoH * 16 / 9);
+        } else {
+          sy = Math.floor((videoH - videoW * 9 / 16) / 2);
+          sh = Math.floor(videoW * 9 / 16);
+        }
+      } else if (aspectRatio === '4:3') {
+        if (videoW / videoH > 4/3) {
+          sx = Math.floor((videoW - videoH * 4 / 3) / 2);
+          sw = Math.floor(videoH * 4 / 3);
+        } else {
+          sy = Math.floor((videoH - videoW * 3 / 4) / 2);
+          sh = Math.floor(videoW * 3 / 4);
+        }
       }
-      
+      // Digital zoom cropping
+      if (isDigitalZoom && currentZoom !== 1) {
+        const scale = currentZoom;
+        const zoomedW = sw / scale;
+        const zoomedH = sh / scale;
+        sx += (sw - zoomedW) / 2;
+        sy += (sh - zoomedH) / 2;
+        sw = zoomedW;
+        sh = zoomedH;
+      }
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
       canvas.toBlob(blob => {
         photoBlob = blob;
         addToRecents(blob);
-      }, 'image/jpeg', 0.95);
+      }, 'image/jpeg', 1.0); // Max quality
     }
 
     // Timer logic
@@ -1137,8 +1196,6 @@
     const settingsModal = document.getElementById('settings-modal');
     const settingsClose = document.getElementById('settings-close');
     const menuBtn = document.querySelector('.fa-bars');
-    let aspectRatio = '4:3';
-    let timerSetting = 'off';
 
     menuBtn.addEventListener('click', () => {
       settingsModal.classList.add('active');
