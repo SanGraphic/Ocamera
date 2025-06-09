@@ -1119,6 +1119,8 @@
       idx = (idx + 1) % devices.length;
       currentDeviceId = devices[idx].deviceId;
       await startCamera(currentDeviceId);
+      // Update viewfinder transform based on new camera's settings
+      updateViewfinderTransform();
     }
 
     // Take photo
