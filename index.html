@@ -803,8 +803,8 @@
       <div class="settings-section">
         <div class="settings-row" id="aspect-ratio-row">
           <button class="settings-btn" data-aspect="1:1">1:1</button>
-          <button class="settings-btn" data-aspect="4:3">4:3</button>
-          <button class="settings-btn" data-aspect="16:9">16:9</button>
+          <button class="settings-btn" data-aspect="3:4">3:4</button>
+          <button class="settings-btn" data-aspect="9:16">9:16</button>
           <button class="settings-btn" data-aspect="full">Full</button>
         </div>
       </div>
@@ -854,6 +854,9 @@
     let selectedPhoto = null;
     let aspectRatio = '4:3';
     let timerSetting = 'off';
+    let isHDR = false;
+    let hdrExposures = [-2, 0, 2]; // EV values for HDR capture
+    let isProcessingHDR = false;
 
     // Get all video input devices
     async function getCameras() {
@@ -883,6 +886,23 @@
         const videoTrack = currentStream.getVideoTracks()[0];
         const capabilities = videoTrack.getCapabilities();
         const supportedFeatures = [];
+        
+        // Check for optical zoom support
+        if (capabilities.zoom) {
+          isDigitalZoom = false;
+          minZoom = capabilities.zoom.min;
+          maxZoom = capabilities.zoom.max;
+          zoomStep = (maxZoom - minZoom) / 10;
+        } else {
+          isDigitalZoom = true;
+          minZoom = 1;
+          maxZoom = 6;
+          zoomStep = 0.5;
+        }
+        
+        // Update zoom UI based on available zoom type
+        updateZoomUI();
+        
         // Try to get the actual max resolution
         if (capabilities.width && capabilities.height) {
           const maxWidth = capabilities.width.max;
@@ -906,6 +926,7 @@
           const settings = videoTrack.getSettings();
           showResolution(settings.width, settings.height);
         }
+        
         // Try to set best available camera features
         if (capabilities.focusMode && capabilities.focusMode.length) {
           supportedFeatures.push('Focus: ' + capabilities.focusMode.join('/'));
@@ -934,23 +955,13 @@
         if (capabilities.torch) {
           supportedFeatures.push('Torch');
         }
-        // OIS is not exposed in web APIs yet
+        
         // Show supported features in the UI
         showSupportedFeatures(supportedFeatures);
         
-        if (capabilities.zoom) {
-          isDigitalZoom = false;
-          minZoom = capabilities.zoom.min;
-          maxZoom = capabilities.zoom.max;
-          zoomStep = (maxZoom - minZoom) / 10;
-          updateZoomUI();
-        } else {
-          isDigitalZoom = true;
-          minZoom = 1;
-          maxZoom = 6;
-          zoomStep = 0.5;
-          updateZoomUI();
-        }
+        // Apply current aspect ratio to viewfinder
+        updateAspectRatio();
+        
       } catch (e) {
         if (deviceId) {
           constraints.video = { deviceId: { exact: deviceId } };
@@ -965,6 +976,8 @@
           const settings = videoTrack.getSettings();
           showResolution(settings.width, settings.height);
           showSupportedFeatures([]);
+          
+          // Check for optical zoom support
           if (capabilities.zoom) {
             isDigitalZoom = false;
             minZoom = capabilities.zoom.min;
@@ -976,7 +989,12 @@
             maxZoom = 6;
             zoomStep = 0.5;
           }
+          
+          // Update zoom UI based on available zoom type
           updateZoomUI();
+          
+          // Apply current aspect ratio to viewfinder
+          updateAspectRatio();
         } catch (err) {
           alert('Camera access denied or not available.');
         }
@@ -986,19 +1004,17 @@
     // Update zoom UI based on device capabilities
     function updateZoomUI() {
       const zoomBar = document.getElementById('zoom-bar');
-      const currentActive = zoomBar.querySelector('.active');
-      const currentZoom = currentActive ? parseFloat(currentActive.dataset.zoom) : 1;
       
-      // Create zoom options based on device capabilities
+      // Create zoom options based on available zoom type
       const zoomValues = [];
-      if (isDigitalZoom) {
-        // Digital zoom options
-        zoomValues.push(1, 2, 3, 4, 6);
-      } else {
+      if (!isDigitalZoom) {
         // Optical zoom options
         for (let zoom = minZoom; zoom <= maxZoom; zoom += zoomStep) {
           zoomValues.push(Number(zoom.toFixed(1)));
         }
+      } else {
+        // Digital zoom options
+        zoomValues.push(1, 2, 3, 4, 6);
       }
       
       // Create all spans first
@@ -1006,7 +1022,7 @@
         const span = document.createElement('span');
         span.textContent = zoom === 1 ? '1x' : zoom + 'x';
         span.dataset.zoom = zoom;
-        if (Math.abs(zoom - currentZoom) < 0.1) {
+        if (Math.abs(zoom - 1) < 0.1) { // Always set 1x as active by default
           span.classList.add('active');
         }
         if (zoom > maxZoom) {
@@ -1018,6 +1034,10 @@
       // Clear and append all at once
       zoomBar.innerHTML = '';
       spans.forEach(span => zoomBar.appendChild(span));
+      
+      // Reset zoom to 1x
+      currentZoom = 1;
+      updateViewfinderTransform();
     }
 
     // Helper to update viewfinder transform (centering, zoom, mirroring)
@@ -1027,8 +1047,21 @@
       let mirrored = false;
       cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
       if (cameraSettings[currentDeviceId] && cameraSettings[currentDeviceId].mirrored) mirrored = true;
-      let transform = `translate(-50%, -50%) scale(${scale})`;
-      if (mirrored) transform += ' scaleX(-1)';
+      
+      // Get current transform properties
+      let transform = 'translate(-50%, -50%)';
+      
+      // Add scale
+      if (scale !== 1) {
+        transform += ` scale(${scale})`;
+      }
+      
+      // Add mirroring if needed
+      if (mirrored) {
+        transform += ' scaleX(-1)';
+      }
+      
+      // Apply the transform
       video.style.transform = transform;
     }
 
@@ -1045,11 +1078,13 @@
           currentZoom = zoom;
         } catch (err) {
           console.warn('Failed to apply optical zoom:', err);
+          currentZoom = 1; // Reset to 1x on error
         }
-      } else {
-        // Digital zoom fallback
+      } else if (isDigitalZoom) {
+        // Only apply digital zoom if optical zoom is not available
         currentZoom = zoom;
       }
+      
       // Update UI without causing layout shifts
       requestAnimationFrame(() => {
         document.querySelectorAll('#zoom-bar span').forEach(span => {
@@ -1119,13 +1154,203 @@
       idx = (idx + 1) % devices.length;
       currentDeviceId = devices[idx].deviceId;
       await startCamera(currentDeviceId);
-      // Update viewfinder transform based on new camera's settings
-      updateViewfinderTransform();
+      // The startCamera function already calls updateAspectRatio, which includes updateViewfinderTransform
+    }
+
+    // HDR processing function
+    async function processHDR(video, videoTrack) {
+      try {
+        // Check if camera supports exposure compensation
+        const capabilities = videoTrack.getCapabilities();
+        const settings = videoTrack.getSettings();
+        
+        // If no exposure compensation support, use enhanced single frame
+        if (!capabilities.exposureCompensation) {
+          console.log('Using enhanced single frame processing');
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0);
+          
+          // Get image data
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const outputData = ctx.createImageData(canvas.width, canvas.height);
+          
+          // Apply local contrast enhancement
+          const radius = 2;
+          const strength = 0.5;
+          
+          for (let y = 0; y < canvas.height; y++) {
+            for (let x = 0; x < canvas.width; x++) {
+              const i = (y * canvas.width + x) * 4;
+              
+              // Calculate local average
+              let sumR = 0, sumG = 0, sumB = 0;
+              let count = 0;
+              
+              for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                  const nx = x + dx;
+                  const ny = y + dy;
+                  
+                  if (nx >= 0 && nx < canvas.width && ny >= 0 && ny < canvas.height) {
+                    const ni = (ny * canvas.width + nx) * 4;
+                    sumR += imageData.data[ni];
+                    sumG += imageData.data[ni + 1];
+                    sumB += imageData.data[ni + 2];
+                    count++;
+                  }
+                }
+              }
+              
+              const avgR = sumR / count;
+              const avgG = sumG / count;
+              const avgB = sumB / count;
+              
+              // Enhance contrast
+              outputData.data[i] = Math.min(255, Math.max(0, 
+                imageData.data[i] + (imageData.data[i] - avgR) * strength));
+              outputData.data[i + 1] = Math.min(255, Math.max(0, 
+                imageData.data[i + 1] + (imageData.data[i + 1] - avgG) * strength));
+              outputData.data[i + 2] = Math.min(255, Math.max(0, 
+                imageData.data[i + 2] + (imageData.data[i + 2] - avgB) * strength));
+              outputData.data[i + 3] = 255;
+            }
+          }
+          
+          ctx.putImageData(outputData, 0, 0);
+          
+          return new Promise(resolve => {
+            canvas.toBlob(blob => {
+              resolve(blob);
+            }, 'image/jpeg', 0.95);
+          });
+        }
+        
+        // Get supported exposure range
+        const minEV = capabilities.exposureCompensation.min;
+        const maxEV = capabilities.exposureCompensation.max;
+        const step = capabilities.exposureCompensation.step;
+        
+        // Use fewer exposures but with better timing
+        const evValues = [
+          Math.max(minEV, -1 * step), // Slightly underexposed
+          0,                          // Normal exposure
+          Math.min(maxEV, 1 * step)   // Slightly overexposed
+        ];
+        
+        const exposures = [];
+        const originalEV = settings.exposureCompensation || 0;
+        
+        // Quick capture of exposures
+        for (const ev of evValues) {
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [{ exposureCompensation: ev }]
+            });
+            // Shorter wait time
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            exposures.push({ canvas, ev });
+          } catch (err) {
+            console.warn('Failed to set exposure:', err);
+          }
+        }
+        
+        // Reset exposure
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [{ exposureCompensation: originalEV }]
+          });
+        } catch (err) {
+          console.warn('Failed to reset exposure:', err);
+        }
+        
+        // Process HDR
+        const outputCanvas = document.createElement('canvas');
+        const ctx = outputCanvas.getContext('2d');
+        outputCanvas.width = video.videoWidth;
+        outputCanvas.height = video.videoHeight;
+        
+        // Get image data from each exposure
+        const imageDatas = exposures.map(({ canvas, ev }) => {
+          const tempCanvas = document.createElement('canvas');
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCanvas.width = canvas.width;
+          tempCanvas.height = canvas.height;
+          tempCtx.drawImage(canvas, 0, 0);
+          return { data: tempCtx.getImageData(0, 0, canvas.width, canvas.height), ev };
+        });
+        
+        // Create output image data
+        const outputData = ctx.createImageData(outputCanvas.width, outputCanvas.height);
+        
+        // Process each pixel
+        for (let i = 0; i < outputData.data.length; i += 4) {
+          let r = 0, g = 0, b = 0;
+          let weight = 0;
+          
+          // Combine exposures using weighted average
+          imageDatas.forEach(({ data, ev }) => {
+            const w = Math.pow(2, ev / step); // Weight based on EV
+            r += data.data[i] * w;
+            g += data.data[i + 1] * w;
+            b += data.data[i + 2] * w;
+            weight += w;
+          });
+          
+          // Normalize and apply tone mapping
+          outputData.data[i] = Math.min(255, Math.max(0, r / weight));
+          outputData.data[i + 1] = Math.min(255, Math.max(0, g / weight));
+          outputData.data[i + 2] = Math.min(255, Math.max(0, b / weight));
+          outputData.data[i + 3] = 255;
+        }
+        
+        // Put the processed image data back
+        ctx.putImageData(outputData, 0, 0);
+        
+        return new Promise(resolve => {
+          outputCanvas.toBlob(blob => {
+            resolve(blob);
+          }, 'image/jpeg', 0.95);
+        });
+      } catch (err) {
+        console.error('HDR processing failed:', err);
+        throw err;
+      }
     }
 
     // Take photo
-    function takePhoto() {
+    async function takePhoto() {
       const video = document.getElementById('viewfinder');
+      const videoTrack = currentStream.getVideoTracks()[0];
+      
+      // Check if HDR is enabled
+      if (isHDR) {
+        isProcessingHDR = true;
+        updateHDRStatus('Capturing HDR...');
+        
+        try {
+          photoBlob = await processHDR(video, videoTrack);
+          addToRecents(photoBlob);
+          updateHDRStatus('');
+        } catch (err) {
+          console.error('HDR processing failed:', err);
+          updateHDRStatus('HDR Failed');
+          setTimeout(() => updateHDRStatus(''), 2000);
+        } finally {
+          isProcessingHDR = false;
+        }
+        return;
+      }
+      
+      // Regular photo capture
       // Always use the full video resolution
       const videoW = video.videoWidth;
       const videoH = video.videoHeight;
@@ -1135,21 +1360,21 @@
       if (aspectRatio === '1:1') {
         const minDim = Math.min(videoW, videoH);
         outW = outH = minDim;
-      } else if (aspectRatio === '16:9') {
-        if (videoW / videoH > 16/9) {
+      } else if (aspectRatio === '9:16') {
+        if (videoW / videoH > 9/16) {
           outH = videoH;
-          outW = Math.round(videoH * 16 / 9);
+          outW = Math.round(videoH * 9 / 16);
         } else {
           outW = videoW;
-          outH = Math.round(videoW * 9 / 16);
+          outH = Math.round(videoW * 16 / 9);
         }
-      } else if (aspectRatio === '4:3') {
-        if (videoW / videoH > 4/3) {
+      } else if (aspectRatio === '3:4') {
+        if (videoW / videoH > 3/4) {
           outH = videoH;
-          outW = Math.round(videoH * 4 / 3);
+          outW = Math.round(videoH * 3 / 4);
         } else {
           outW = videoW;
-          outH = Math.round(videoW * 3 / 4);
+          outH = Math.round(videoW * 4 / 3);
         }
       } // else 'full' uses full videoW/videoH
       const canvas = document.createElement('canvas');
@@ -1166,21 +1391,21 @@
           sy = Math.floor((videoH - videoW) / 2);
           sw = sh = videoW;
         }
-      } else if (aspectRatio === '16:9') {
-        if (videoW / videoH > 16/9) {
-          sx = Math.floor((videoW - videoH * 16 / 9) / 2);
-          sw = Math.floor(videoH * 16 / 9);
+      } else if (aspectRatio === '9:16') {
+        if (videoW / videoH > 9/16) {
+          sx = Math.floor((videoW - videoH * 9 / 16) / 2);
+          sw = Math.floor(videoH * 9 / 16);
         } else {
-          sy = Math.floor((videoH - videoW * 9 / 16) / 2);
-          sh = Math.floor(videoW * 9 / 16);
+          sy = Math.floor((videoH - videoW * 16 / 9) / 2);
+          sh = Math.floor(videoW * 16 / 9);
         }
-      } else if (aspectRatio === '4:3') {
-        if (videoW / videoH > 4/3) {
-          sx = Math.floor((videoW - videoH * 4 / 3) / 2);
-          sw = Math.floor(videoH * 4 / 3);
+      } else if (aspectRatio === '3:4') {
+        if (videoW / videoH > 3/4) {
+          sx = Math.floor((videoW - videoH * 3 / 4) / 2);
+          sw = Math.floor(videoH * 3 / 4);
         } else {
-          sy = Math.floor((videoH - videoW * 3 / 4) / 2);
-          sh = Math.floor(videoW * 3 / 4);
+          sy = Math.floor((videoH - videoW * 4 / 3) / 2);
+          sh = Math.floor(videoW * 4 / 3);
         }
       }
       // Digital zoom cropping
@@ -1220,10 +1445,12 @@
     });
 
     // Shutter button
-    document.getElementById('shutter-btn').addEventListener('click', () => {
+    document.getElementById('shutter-btn').addEventListener('click', async () => {
+      if (isProcessingHDR) return;
+      
       document.getElementById('shutter-btn').disabled = true;
-      setTimeout(() => {
-        takePhoto();
+      setTimeout(async () => {
+        await takePhoto();
         document.getElementById('shutter-btn').disabled = false;
       }, timer * 1000);
     });
@@ -1234,30 +1461,6 @@
     });
 
     // On app start, load settings and apply to camera
-    async function applyCameraSettings(deviceId) {
-      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
-      const settings = cameraSettings[deviceId];
-      if (!settings) return;
-      // Apply mode, resolution, mirrored
-      let constraints = {
-        video: {
-          deviceId: { exact: deviceId }
-        },
-        audio: false
-      };
-      if (settings.mode) constraints.video.facingMode = { exact: settings.mode };
-      if (settings.resolution) {
-        const [w, h] = settings.resolution.split('x').map(Number);
-        constraints.video.width = { exact: w };
-        constraints.video.height = { exact: h };
-      }
-      // Start camera with these constraints
-      await startCamera(deviceId, settings.mode || undefined);
-      // Update viewfinder transform for mirroring
-      updateViewfinderTransform();
-    }
-
-    // On app start, load settings and apply to camera
     window.onload = async () => {
       await getCameras();
       if (devices.length > 0) {
@@ -1266,7 +1469,19 @@
       } else {
         await startCamera();
       }
+      
+      // Set initial aspect ratio based on active button
+      const activeAspectBtn = document.querySelector('#aspect-ratio-row .settings-btn.active');
+      if (activeAspectBtn) {
+        aspectRatio = activeAspectBtn.dataset.aspect;
+      }
+      
+      // Ensure zoom is reset to 1x on startup
+      currentZoom = 1;
       updateViewfinderTransform();
+      
+      // Apply aspect ratio
+      updateAspectRatio();
     };
 
     // Function to add a photo to recents
@@ -1409,7 +1624,7 @@
       });
     });
     // Set initial active
-    document.querySelector('#aspect-ratio-row .settings-btn[data-aspect="4:3"]').classList.add('active');
+    document.querySelector('#aspect-ratio-row .settings-btn[data-aspect="3:4"]').classList.add('active');
     document.querySelector('#timer-row .settings-btn[data-timer="off"]').classList.add('active');
 
     // Update aspect ratio for viewfinder and photo capture
@@ -1417,29 +1632,152 @@
       const video = document.getElementById('viewfinder');
       const container = video.parentElement;
       let ratio;
+      
+      // Remove any existing crop overlay
+      let existingOverlay = document.getElementById('crop-overlay');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      
+      // Create crop overlay
+      const overlay = document.createElement('div');
+      overlay.id = 'crop-overlay';
+      overlay.style.position = 'absolute';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = '5';
+      
+      // Apply different cropping guides based on selected aspect ratio
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      
+      // Reset video style to cover full container
+      video.style.width = '100%';
+      video.style.height = '100%';
+      
+      let cropWidth, cropHeight, leftOffset, topOffset;
+      
       switch (aspectRatio) {
-        case '1:1': ratio = 1; break;
-        case '16:9': ratio = 16/9; break;
-        case 'full': ratio = window.innerWidth / window.innerHeight; break;
-        default: ratio = 4/3;
+        case '1:1':
+          ratio = 1;
+          
+          // Create square crop
+          let squareSize = Math.min(containerWidth, containerHeight);
+          leftOffset = (containerWidth - squareSize) / 2;
+          topOffset = (containerHeight - squareSize) / 2;
+          
+          // Apply the actual crop to video
+          video.style.width = squareSize + 'px';
+          video.style.height = squareSize + 'px';
+          video.style.objectFit = 'cover';
+          
+          // Create overlay for dark areas
+          overlay.innerHTML = `
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${squareSize}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${squareSize}px; background:rgba(0,0,0,0.7);"></div>
+          `;
+          break;
+          
+        case '3:4':
+          ratio = 3/4;
+          
+          // Calculate 3:4 dimensions that fit in the container (portrait)
+          if (containerWidth / containerHeight > 3/4) {
+            // Container is wider than 3:4
+            cropHeight = containerHeight;
+            cropWidth = cropHeight * (3/4);
+          } else {
+            // Container is taller than 3:4
+            cropWidth = containerWidth;
+            cropHeight = cropWidth * (4/3);
+          }
+          
+          leftOffset = (containerWidth - cropWidth) / 2;
+          topOffset = (containerHeight - cropHeight) / 2;
+          
+          // Apply the actual crop to video
+          video.style.width = cropWidth + 'px';
+          video.style.height = cropHeight + 'px';
+          video.style.objectFit = 'cover';
+          
+          // Create overlay for dark areas
+          overlay.innerHTML = `
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+          `;
+          break;
+          
+        case '9:16':
+          ratio = 9/16;
+          
+          // Calculate 9:16 dimensions that fit in the container (portrait)
+          if (containerWidth / containerHeight > 9/16) {
+            // Container is wider than 9:16
+            cropHeight = containerHeight;
+            cropWidth = cropHeight * (9/16);
+          } else {
+            // Container is taller than 9:16
+            cropWidth = containerWidth;
+            cropHeight = cropWidth * (16/9);
+          }
+          
+          leftOffset = (containerWidth - cropWidth) / 2;
+          topOffset = (containerHeight - cropHeight) / 2;
+          
+          // Apply the actual crop to video
+          video.style.width = cropWidth + 'px';
+          video.style.height = cropHeight + 'px';
+          video.style.objectFit = 'cover';
+          
+          // Create overlay for dark areas
+          overlay.innerHTML = `
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+          `;
+          break;
+          
+        default: // 'full'
+          // Reset to full container
+          video.style.width = '100%';
+          video.style.height = '100%';
+          video.style.objectFit = 'cover';
+          break;
       }
-      // Set container height based on width and ratio
-      container.style.height = `calc(100vw / ${ratio})`;
-      // For full, fill the container
-      if (aspectRatio === 'full') {
-        container.style.height = '100%';
-      }
-    }
-    // Update timer for shutter
-    function updateTimer() {
-      if (timerSetting === 'off') {
-        timer = 0;
+      
+      // Add overlay to container if not 'full'
+      if (aspectRatio !== 'full') {
+        container.appendChild(overlay);
+        
+        // Center the video element within the container
+        video.style.position = 'absolute';
+        video.style.left = '50%';
+        video.style.top = '50%';
+        video.style.transform = 'translate(-50%, -50%)';
       } else {
-        timer = parseInt(timerSetting, 10);
+        // Reset video position for full view
+        video.style.position = 'absolute';
+        video.style.top = '50%';
+        video.style.left = '50%';
+        video.style.transform = 'translate(-50%, -50%)';
       }
+      
+      // Update transform to maintain mirroring and zoom if present
+      updateViewfinderTransform();
     }
-    // Remove old timer button
-    document.getElementById('timer-btn').style.display = 'none';
+    
+    // Add window resize handler to update aspect ratio
+    window.addEventListener('resize', () => {
+      updateAspectRatio();
+    });
 
     // Show resolution in UI
     function showResolution(w, h) {
@@ -1592,6 +1930,47 @@
         document.querySelector('.viewfinder-container').appendChild(featDiv);
       }
       featDiv.textContent = features.length ? 'Features: ' + features.join(', ') : '';
+    }
+
+    // Add HDR status indicator
+    function updateHDRStatus(status) {
+      let statusDiv = document.getElementById('hdr-status');
+      if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'hdr-status';
+        statusDiv.style.position = 'absolute';
+        statusDiv.style.top = '50%';
+        statusDiv.style.left = '50%';
+        statusDiv.style.transform = 'translate(-50%, -50%)';
+        statusDiv.style.background = 'rgba(0,0,0,0.7)';
+        statusDiv.style.color = '#fff';
+        statusDiv.style.padding = '12px 24px';
+        statusDiv.style.borderRadius = '8px';
+        statusDiv.style.fontSize = '1.2rem';
+        statusDiv.style.zIndex = '1000';
+        document.querySelector('.viewfinder-container').appendChild(statusDiv);
+      }
+      statusDiv.textContent = status;
+      statusDiv.style.display = status ? 'block' : 'none';
+    }
+
+    // Modify HDR button click handler
+    document.querySelector('.settings-icon-btn:first-child').addEventListener('click', function() {
+      this.classList.toggle('active');
+      isHDR = this.classList.contains('active');
+      if (isHDR) {
+        updateHDRStatus('HDR Enabled');
+        setTimeout(() => updateHDRStatus(''), 2000);
+      }
+    });
+
+    // Timer selection
+    function updateTimer() {
+      if (timerSetting === 'off') {
+        timer = 0;
+      } else {
+        timer = parseInt(timerSetting, 10);
+      }
     }
   </script>
 </body>
