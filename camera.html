@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phone Camera Web App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Bootstrap CSS for layout -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome for icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --safe-area-inset-top: env(safe-area-inset-top, 0px);
+      --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      overflow-x: hidden;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+    }
+
+    .camera-app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+      position: relative;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: calc(16px + var(--safe-area-inset-top)) 16px 16px;
+      background: #000;
+      font-size: clamp(1.2rem, 4vw, 1.5rem);
+      position: relative;
+      z-index: 10;
+      gap: 8px;
+    }
+
+    .top-bar i {
+      margin: 0;
+      color: #fff;
+      font-size: clamp(1.2rem, 4vw, 1.5rem);
+      padding: 8px;
+    }
+
+    .viewfinder-container {
+      flex: 1;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .viewfinder-text {
+      position: absolute;
+      bottom: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(2rem, 8vw, 3rem);
+      color: red;
+      font-weight: 500;
+      pointer-events: none;
+      user-select: none;
+      z-index: 2;
+    }
+
+    video#viewfinder {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #fff;
+      transform-origin: center center;
+      transition: transform 0.2s ease-out;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .controls-bar {
+      background: #000;
+      padding: 16px 0 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      min-height: 80px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .zoom-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+      padding: 0 16px;
+      min-height: 40px;
+      position: relative;
+    }
+
+    .zoom-bar span {
+      color: #fff;
+      margin: 0;
+      font-size: clamp(0.9rem, 3vw, 1.1rem);
+      cursor: pointer;
+      padding: 4px 12px;
+      border-radius: 8px;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      min-width: 48px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .zoom-bar span:hover {
+      background: #333;
+    }
+
+    .zoom-bar .active {
+      background: #444;
+      color: orange;
+    }
+
+    .zoom-bar .disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .timer-btn {
+      background: orange;
+      color: #000;
+      border-radius: 16px;
+      padding: 4px 12px;
+      margin-right: 12px;
+      font-weight: 600;
+      font-size: clamp(0.9rem, 3vw, 1.1rem);
+      border: none;
+    }
+
+    .side-btns {
+      position: absolute;
+      right: 16px;
+      bottom: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 10;
+    }
+
+    .side-btns button {
+      background: #222;
+      border: none;
+      border-radius: 50%;
+      width: clamp(40px, 12vw, 44px);
+      height: clamp(40px, 12vw, 44px);
+      color: #fff;
+      font-size: clamp(1.1rem, 3.5vw, 1.3rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bottom-bar {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 16px calc(16px + var(--safe-area-inset-bottom));
+      position: relative;
+      z-index: 10;
+      gap: 16px;
+    }
+
+    .mode-switcher {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: clamp(0.9rem, 3vw, 1.1rem);
+      color: #fff;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      padding-bottom: 4px;
+      width: 100%;
+    }
+
+    .mode-switcher::-webkit-scrollbar {
+      display: none;
+    }
+
+    .mode-switcher span {
+      white-space: nowrap;
+    }
+
+    .mode-switcher .active {
+      color: orange;
+      font-weight: 600;
+    }
+
+    .bottom-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .thumb {
+      width: clamp(48px, 14vw, 56px);
+      height: clamp(48px, 14vw, 56px);
+      border-radius: 12px;
+      object-fit: cover;
+      border: 2px solid #fff;
+      background: #222;
+      flex-shrink: 0;
+      order: 1;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .thumb:hover {
+      transform: scale(1.05);
+    }
+
+    .shutter-btn {
+      background: linear-gradient(180deg, #ff9800 0%, #ff5722 100%);
+      border: 4px solid #fff;
+      border-radius: 50%;
+      width: clamp(60px, 18vw, 72px);
+      height: clamp(60px, 18vw, 72px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 2px #000;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+      flex-shrink: 0;
+      order: 2;
+    }
+
+    .shutter-btn:active {
+      box-shadow: 0 0 0 6px #ff9800;
+    }
+
+    .switch-cam-btn {
+      background: #222;
+      border: none;
+      border-radius: 50%;
+      width: clamp(40px, 12vw, 44px);
+      height: clamp(40px, 12vw, 44px);
+      color: #fff;
+      font-size: clamp(1.1rem, 3.5vw, 1.3rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      order: 3;
+    }
+
+    @media (max-width: 360px) {
+      .top-bar {
+        padding: calc(12px + var(--safe-area-inset-top)) 12px 12px;
+      }
+      
+      .top-bar i {
+        padding: 6px;
+      }
+      
+      .bottom-bar {
+        padding: 8px 12px calc(16px + var(--safe-area-inset-bottom));
+        gap: 12px;
+      }
+      
+      .mode-switcher {
+        gap: 6px;
+      }
+      
+      .bottom-controls {
+        gap: 12px;
+      }
+
+      .controls-bar {
+        padding: 12px 0 0 0;
+        gap: 12px;
+      }
+
+      .zoom-bar {
+        gap: 6px;
+        padding: 0 12px;
+      }
+
+      .zoom-bar span {
+        padding: 3px 10px;
+      }
+    }
+
+    @media (max-height: 600px) {
+      .viewfinder-text {
+        bottom: 15%;
+        font-size: clamp(1.8rem, 6vw, 2.5rem);
+      }
+      
+      .side-btns {
+        bottom: 60px;
+        gap: 12px;
+      }
+    }
+
+    /* Recents Modal Styles */
+    .recents-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #000;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .recents-modal.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .recents-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: calc(16px + var(--safe-area-inset-top)) 16px 16px;
+      background: #000;
+      position: relative;
+      z-index: 10;
+    }
+
+    .back-btn {
+      background: #222;
+      border: none;
+      border-radius: 50%;
+      width: clamp(40px, 12vw, 44px);
+      height: clamp(40px, 12vw, 44px);
+      color: #fff;
+      font-size: clamp(1.1rem, 3.5vw, 1.3rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: #333;
+    }
+
+    .recents-title {
+      color: #fff;
+      font-size: clamp(1.1rem, 3.5vw, 1.3rem);
+      font-weight: 500;
+    }
+
+    .recents-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+      padding: 16px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .recent-photo {
+      aspect-ratio: 1/1;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .recent-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .recent-photo.selected {
+      border: 2px solid orange;
+    }
+
+    .recents-bottom-bar {
+      background: #000;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      border-top: 1px solid #222;
+    }
+
+    .save-btn {
+      background: orange;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .save-btn:hover {
+      background: #ffb74d;
+    }
+
+    .save-btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+
+    /* Full-screen photo view */
+    .photo-view {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #000;
+      z-index: 2000;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .photo-view.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .photo-view-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .photo-view-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: calc(16px + var(--safe-area-inset-top)) 16px 16px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+    }
+
+    .photo-view-bottom-bar {
+      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+    }
+
+    .photo-view-img {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .photo-view-img img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    @media (max-width: 360px) {
+      .recents-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 6px;
+        padding: 12px;
+      }
+
+      .photo-view-top-bar,
+      .photo-view-bottom-bar {
+        padding: 12px;
+      }
+    }
+
+    .settings-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 3000;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      transition: opacity 0.3s;
+    }
+    .settings-modal.active {
+      display: flex;
+      opacity: 1;
+    }
+    .settings-content {
+      width: 100%;
+      max-width: 480px;
+      border-radius: 24px 24px 0 0;
+      background: #181818;
+      padding: 32px 0 16px 0;
+      box-shadow: 0 -2px 24px rgba(0,0,0,0.4);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      align-items: center;
+    }
+    .settings-close {
+      position: absolute;
+      top: 16px;
+      right: 24px;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 2rem;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .settings-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .settings-row {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      width: 100%;
+    }
+    .settings-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.3rem;
+      padding: 8px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .settings-btn.active, .settings-btn:focus {
+      background: #222;
+      color: orange;
+      font-weight: 600;
+    }
+    .settings-icons {
+      margin-top: 16px;
+      gap: 12px;
+    }
+    .settings-icon-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.2rem;
+      gap: 4px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .settings-icon-btn.active {
+      background: orange;
+      color: #181818;
+      font-weight: 600;
+    }
+    .settings-icon-btn span {
+      font-size: 0.95rem;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="camera-app">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <i class="fas fa-volume-mute"></i>
+      <i class="fas fa-square-root-alt"></i>
+      <i class="fas fa-eye-slash"></i>
+      <i class="fas fa-running"></i>
+      <i class="fas fa-crosshairs"></i>
+      <i class="fas fa-bars"></i>
+    </div>
+    <!-- Viewfinder -->
+    <div class="viewfinder-container position-relative">
+      <video id="viewfinder" autoplay playsinline></video>
+      <div class="viewfinder-text">Viewfinder</div>
+      <div class="side-btns">
+        <button id="color-btn" title="Color"><i class="fas fa-adjust"></i></button>
+        <button id="focus-btn" title="Focus"><i class="fas fa-bullseye"></i></button>
+      </div>
+    </div>
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <div class="d-flex align-items-center">
+        <button class="timer-btn" id="timer-btn">1s</button>
+        <div class="zoom-bar" id="zoom-bar">
+          <span data-zoom="0.6">0.6</span>
+          <span data-zoom="1.2">1.2</span>
+          <span data-zoom="2">2</span>
+          <span data-zoom="3">3</span>
+          <span data-zoom="6" class="active">6x</span>
+        </div>
+      </div>
+    </div>
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <div class="mode-switcher">
+        <span>MASTER</span>
+        <span>VIDEO</span>
+        <span class="active">PHOTO</span>
+        <span>PORTRAIT</span>
+        <span>MORE</span>
+      </div>
+      <div class="bottom-controls">
+        <img id="thumb" class="thumb" src="https://via.placeholder.com/56x56.png?text=+" alt="Thumbnail">
+        <button class="shutter-btn" id="shutter-btn"></button>
+        <button class="switch-cam-btn" id="switch-cam-btn" title="Switch Camera"><i class="fas fa-sync-alt"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recents Modal -->
+  <div class="recents-modal" id="recents-modal">
+    <div class="recents-top-bar">
+      <button class="back-btn" id="back-btn" title="Back to Camera">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <div class="recents-title">Recent Photos</div>
+      <div style="width: 44px"></div>
+    </div>
+    <div class="recents-grid" id="recents-grid">
+      <!-- Photos will be added here dynamically -->
+    </div>
+    <div class="recents-bottom-bar">
+      <button class="save-btn" id="save-btn" disabled>Save Selected</button>
+    </div>
+  </div>
+
+  <!-- Full-screen Photo View -->
+  <div class="photo-view" id="photo-view">
+    <div class="photo-view-content">
+      <div class="photo-view-top-bar">
+        <button class="back-btn" id="photo-view-back-btn" title="Back to Gallery">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div style="width: 44px"></div>
+      </div>
+      <div class="photo-view-img">
+        <img id="photo-view-img" src="" alt="Full size photo">
+      </div>
+      <div class="photo-view-bottom-bar">
+        <button class="save-btn" id="photo-view-save-btn">Save Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="settings-modal" id="settings-modal">
+    <div class="settings-content">
+      <button class="settings-close" id="settings-close" title="Close"><i class="fas fa-times"></i></button>
+      <div class="settings-section">
+        <div class="settings-row" id="aspect-ratio-row">
+          <button class="settings-btn" data-aspect="1:1">1:1</button>
+          <button class="settings-btn" data-aspect="4:3">4:3</button>
+          <button class="settings-btn" data-aspect="16:9">16:9</button>
+          <button class="settings-btn" data-aspect="full">Full</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-row" id="timer-row">
+          <button class="settings-btn" data-timer="off">Timer: Off</button>
+          <button class="settings-btn" data-timer="3">3 s</button>
+          <button class="settings-btn" data-timer="10">10 s</button>
+        </div>
+      </div>
+      <div class="settings-section settings-row settings-icons">
+        <button class="settings-icon-btn active"><i class="fas fa-sun"></i><span>Auto HDR</span></button>
+        <button class="settings-icon-btn"><i class="fas fa-layer-group"></i><span>Interval shoot</span></button>
+        <button class="settings-icon-btn"><i class="fas fa-cog"></i><span>Settings</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (for layout, not required for core logic) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Main Camera Logic -->
+  <script>
+    let currentStream = null;
+    let currentDeviceId = null;
+    let devices = [];
+    let facingMode = "environment";
+    let photoBlob = null;
+    let timer = 1;
+    let currentZoom = 1;
+    let maxZoom = 1;
+    let minZoom = 1;
+    let zoomStep = 0.5;
+    let isDigitalZoom = false;
+    let recentPhotos = [];
+    let selectedPhoto = null;
+
+    // Get all video input devices
+    async function getCameras() {
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      devices = allDevices.filter(device => device.kind === 'videoinput');
+    }
+
+    // Start camera with given deviceId or facingMode
+    async function startCamera(deviceId = null, facing = "environment") {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      let constraints = {
+        video: {
+          facingMode: deviceId ? undefined : { exact: facing },
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        document.getElementById('viewfinder').srcObject = currentStream;
+        
+        // Get zoom capabilities
+        const videoTrack = currentStream.getVideoTracks()[0];
+        const capabilities = videoTrack.getCapabilities();
+        
+        if (capabilities.zoom) {
+          // Device supports optical zoom
+          isDigitalZoom = false;
+          minZoom = capabilities.zoom.min;
+          maxZoom = capabilities.zoom.max;
+          zoomStep = (maxZoom - minZoom) / 10; // Divide range into 10 steps
+          updateZoomUI();
+        } else {
+          // Fallback to digital zoom
+          isDigitalZoom = true;
+          minZoom = 1;
+          maxZoom = 6;
+          zoomStep = 0.5;
+          updateZoomUI();
+        }
+      } catch (e) {
+        // fallback: try without facingMode
+        if (deviceId) {
+          constraints.video = { deviceId: { exact: deviceId } };
+        } else {
+          constraints.video = true;
+        }
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+          document.getElementById('viewfinder').srcObject = currentStream;
+          
+          // Get zoom capabilities for fallback
+          const videoTrack = currentStream.getVideoTracks()[0];
+          const capabilities = videoTrack.getCapabilities();
+          
+          if (capabilities.zoom) {
+            isDigitalZoom = false;
+            minZoom = capabilities.zoom.min;
+            maxZoom = capabilities.zoom.max;
+            zoomStep = (maxZoom - minZoom) / 10;
+          } else {
+            isDigitalZoom = true;
+            minZoom = 1;
+            maxZoom = 6;
+            zoomStep = 0.5;
+          }
+          updateZoomUI();
+        } catch (err) {
+          alert('Camera access denied or not available.');
+        }
+      }
+    }
+
+    // Update zoom UI based on device capabilities
+    function updateZoomUI() {
+      const zoomBar = document.getElementById('zoom-bar');
+      const currentActive = zoomBar.querySelector('.active');
+      const currentZoom = currentActive ? parseFloat(currentActive.dataset.zoom) : 1;
+      
+      // Create zoom options based on device capabilities
+      const zoomValues = [];
+      if (isDigitalZoom) {
+        // Digital zoom options
+        zoomValues.push(1, 2, 3, 4, 6);
+      } else {
+        // Optical zoom options
+        for (let zoom = minZoom; zoom <= maxZoom; zoom += zoomStep) {
+          zoomValues.push(Number(zoom.toFixed(1)));
+        }
+      }
+      
+      // Create all spans first
+      const spans = zoomValues.map(zoom => {
+        const span = document.createElement('span');
+        span.textContent = zoom === 1 ? '1x' : zoom + 'x';
+        span.dataset.zoom = zoom;
+        if (Math.abs(zoom - currentZoom) < 0.1) {
+          span.classList.add('active');
+        }
+        if (zoom > maxZoom) {
+          span.classList.add('disabled');
+        }
+        return span;
+      });
+      
+      // Clear and append all at once
+      zoomBar.innerHTML = '';
+      spans.forEach(span => zoomBar.appendChild(span));
+    }
+
+    // Apply zoom
+    async function applyZoom(zoom) {
+      if (zoom < minZoom || zoom > maxZoom) return;
+      
+      const videoTrack = currentStream.getVideoTracks()[0];
+      if (!isDigitalZoom && videoTrack.getCapabilities().zoom) {
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [{ zoom: zoom }]
+          });
+          currentZoom = zoom;
+        } catch (err) {
+          console.warn('Failed to apply optical zoom:', err);
+        }
+      } else {
+        // Digital zoom fallback
+        const video = document.getElementById('viewfinder');
+        video.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+        currentZoom = zoom;
+      }
+      
+      // Update UI without causing layout shifts
+      requestAnimationFrame(() => {
+        document.querySelectorAll('#zoom-bar span').forEach(span => {
+          const spanZoom = parseFloat(span.dataset.zoom);
+          span.classList.remove('active');
+          if (Math.abs(spanZoom - zoom) < 0.1) {
+            span.classList.add('active');
+          }
+        });
+      });
+    }
+
+    // Zoom bar click handler
+    document.getElementById('zoom-bar').addEventListener('click', async (e) => {
+      if (e.target.dataset.zoom && !e.target.classList.contains('disabled')) {
+        const zoom = parseFloat(e.target.dataset.zoom);
+        await applyZoom(zoom);
+      }
+    });
+
+    // Add pinch-to-zoom support
+    let initialPinchDistance = 0;
+    let initialZoom = 1;
+    let isPinching = false;
+    let lastZoom = 1;
+
+    document.getElementById('viewfinder').addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        isPinching = true;
+        initialPinchDistance = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        initialZoom = currentZoom;
+        lastZoom = currentZoom;
+      }
+    });
+
+    document.getElementById('viewfinder').addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && isPinching) {
+        e.preventDefault();
+        const currentDistance = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        const scale = currentDistance / initialPinchDistance;
+        const newZoom = Math.min(Math.max(initialZoom * scale, minZoom), maxZoom);
+        
+        // Only update if the zoom has changed significantly
+        if (Math.abs(newZoom - lastZoom) > 0.1) {
+          applyZoom(newZoom);
+          lastZoom = newZoom;
+        }
+      }
+    });
+
+    document.getElementById('viewfinder').addEventListener('touchend', () => {
+      isPinching = false;
+    });
+
+    // Switch between cameras
+    async function switchCamera() {
+      await getCameras();
+      if (devices.length < 2) return;
+      let idx = devices.findIndex(d => d.deviceId === currentDeviceId);
+      idx = (idx + 1) % devices.length;
+      currentDeviceId = devices[idx].deviceId;
+      await startCamera(currentDeviceId);
+    }
+
+    // Take photo
+    function takePhoto() {
+      const video = document.getElementById('viewfinder');
+      const canvas = document.createElement('canvas');
+      const container = video.parentElement;
+      const containerRect = container.getBoundingClientRect();
+      
+      // Set canvas size to match video's aspect ratio
+      const aspectRatio = video.videoWidth / video.videoHeight;
+      canvas.width = containerRect.width;
+      canvas.height = containerRect.width / aspectRatio;
+      
+      const ctx = canvas.getContext('2d');
+      
+      if (isDigitalZoom && currentZoom !== 1) {
+        // Calculate the scaled dimensions
+        const scale = currentZoom;
+        
+        // Calculate the source rectangle to capture the center portion
+        const sourceWidth = video.videoWidth / scale;
+        const sourceHeight = video.videoHeight / scale;
+        const sourceX = (video.videoWidth - sourceWidth) / 2;
+        const sourceY = (video.videoHeight - sourceHeight) / 2;
+        
+        // Draw the zoomed portion
+        ctx.drawImage(
+          video,
+          sourceX, sourceY, sourceWidth, sourceHeight,  // Source rectangle
+          0, 0, canvas.width, canvas.height            // Destination rectangle
+        );
+      } else {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+      
+      canvas.toBlob(blob => {
+        photoBlob = blob;
+        addToRecents(blob);
+      }, 'image/jpeg', 0.95);
+    }
+
+    // Timer logic
+    document.getElementById('timer-btn').addEventListener('click', () => {
+      timer = timer === 1 ? 3 : timer === 3 ? 5 : 1;
+      document.getElementById('timer-btn').textContent = timer + 's';
+    });
+
+    // Shutter button
+    document.getElementById('shutter-btn').addEventListener('click', () => {
+      document.getElementById('shutter-btn').disabled = true;
+      setTimeout(() => {
+        takePhoto();
+        document.getElementById('shutter-btn').disabled = false;
+      }, timer * 1000);
+    });
+
+    // Switch camera button
+    document.getElementById('switch-cam-btn').addEventListener('click', async () => {
+      await switchCamera();
+    });
+
+    // On load, start camera
+    window.onload = async () => {
+      await getCameras();
+      if (devices.length > 0) {
+        currentDeviceId = devices[0].deviceId;
+        await startCamera(currentDeviceId);
+      } else {
+        await startCamera();
+      }
+    };
+
+    // Function to add a photo to recents
+    function addToRecents(blob) {
+      const url = URL.createObjectURL(blob);
+      recentPhotos.unshift({
+        url: url,
+        blob: blob,
+        timestamp: Date.now()
+      });
+      // Keep only last 20 photos
+      if (recentPhotos.length > 20) {
+        URL.revokeObjectURL(recentPhotos.pop().url);
+      }
+      // Update thumbnail
+      document.getElementById('thumb').src = url;
+    }
+
+    // Function to show recents modal
+    function showRecents() {
+      const modal = document.getElementById('recents-modal');
+      const grid = document.getElementById('recents-grid');
+      
+      // Pause the camera
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.enabled = false);
+      }
+      
+      // Clear and populate grid
+      grid.innerHTML = '';
+      recentPhotos.forEach((photo, index) => {
+        const div = document.createElement('div');
+        div.className = 'recent-photo';
+        div.innerHTML = `<img src="${photo.url}" alt="Recent photo">`;
+        div.onclick = () => selectPhoto(div, index);
+        grid.appendChild(div);
+      });
+      
+      modal.classList.add('active');
+    }
+
+    // Function to hide recents modal
+    function hideRecents() {
+      const modal = document.getElementById('recents-modal');
+      modal.classList.remove('active');
+      
+      // Resume the camera
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.enabled = true);
+      }
+      
+      // Clear selection
+      selectedPhoto = null;
+      document.getElementById('save-btn').disabled = true;
+    }
+
+    // Function to select a photo
+    function selectPhoto(element, index) {
+      // Remove previous selection
+      document.querySelectorAll('.recent-photo').forEach(photo => {
+        photo.classList.remove('selected');
+      });
+      
+      // Add new selection
+      element.classList.add('selected');
+      selectedPhoto = recentPhotos[index];
+      document.getElementById('save-btn').disabled = false;
+      
+      // Show full-screen view
+      showFullScreenPhoto(selectedPhoto.url);
+    }
+
+    // Function to save selected photo
+    function saveSelectedPhoto() {
+      if (!selectedPhoto) return;
+      
+      const a = document.createElement('a');
+      a.href = selectedPhoto.url;
+      a.download = `photo_${selectedPhoto.timestamp}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // Function to show full-screen photo
+    function showFullScreenPhoto(url) {
+      const photoView = document.getElementById('photo-view');
+      const photoViewImg = document.getElementById('photo-view-img');
+      photoViewImg.src = url;
+      photoView.classList.add('active');
+    }
+
+    // Function to hide full-screen photo
+    function hideFullScreenPhoto() {
+      const photoView = document.getElementById('photo-view');
+      photoView.classList.remove('active');
+    }
+
+    // Add event listeners for recents functionality
+    document.getElementById('thumb').addEventListener('click', showRecents);
+    document.getElementById('back-btn').addEventListener('click', hideRecents);
+    document.getElementById('save-btn').addEventListener('click', saveSelectedPhoto);
+
+    // Add event listeners for photo view
+    document.getElementById('photo-view-back-btn').addEventListener('click', hideFullScreenPhoto);
+    document.getElementById('photo-view-save-btn').addEventListener('click', () => {
+      if (selectedPhoto) {
+        saveSelectedPhoto();
+      }
+    });
+
+    // Settings modal logic
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsClose = document.getElementById('settings-close');
+    const menuBtn = document.querySelector('.fa-bars');
+    let aspectRatio = '4:3';
+    let timerSetting = 'off';
+
+    menuBtn.addEventListener('click', () => {
+      settingsModal.classList.add('active');
+    });
+    settingsClose.addEventListener('click', () => {
+      settingsModal.classList.remove('active');
+    });
+
+    // Aspect ratio selection
+    document.querySelectorAll('#aspect-ratio-row .settings-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#aspect-ratio-row .settings-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        aspectRatio = btn.dataset.aspect;
+        updateAspectRatio();
+      });
+    });
+    // Timer selection
+    document.querySelectorAll('#timer-row .settings-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#timer-row .settings-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        timerSetting = btn.dataset.timer;
+        updateTimer();
+      });
+    });
+    // Set initial active
+    document.querySelector('#aspect-ratio-row .settings-btn[data-aspect="4:3"]').classList.add('active');
+    document.querySelector('#timer-row .settings-btn[data-timer="off"]').classList.add('active');
+
+    // Update aspect ratio for viewfinder and photo capture
+    function updateAspectRatio() {
+      const video = document.getElementById('viewfinder');
+      const container = video.parentElement;
+      let ratio;
+      switch (aspectRatio) {
+        case '1:1': ratio = 1; break;
+        case '16:9': ratio = 16/9; break;
+        case 'full': ratio = window.innerWidth / window.innerHeight; break;
+        default: ratio = 4/3;
+      }
+      // Set container height based on width and ratio
+      container.style.height = `calc(100vw / ${ratio})`;
+      // For full, fill the container
+      if (aspectRatio === 'full') {
+        container.style.height = '100%';
+      }
+    }
+    // Update timer for shutter
+    function updateTimer() {
+      if (timerSetting === 'off') {
+        timer = 0;
+      } else {
+        timer = parseInt(timerSetting, 10);
+      }
+    }
+    // Remove old timer button
+    document.getElementById('timer-btn').style.display = 'none';
+  </script>
+</body>
+</html>
