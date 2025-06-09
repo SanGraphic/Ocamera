@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ocamera Web-App</title>
+  <title>Phone Camera Web App</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <!-- Bootstrap CSS for layout -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -617,6 +617,86 @@
       font-size: 0.95rem;
       margin-top: 2px;
     }
+    .device-settings-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.97);
+      z-index: 4000;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      transition: opacity 0.3s;
+    }
+    .device-settings-modal.active {
+      display: flex;
+      opacity: 1;
+    }
+    .device-settings-content {
+      width: 100%;
+      max-width: 480px;
+      border-radius: 24px 24px 0 0;
+      background: #181818;
+      padding: 32px 0 16px 0;
+      box-shadow: 0 -2px 24px rgba(0,0,0,0.4);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      min-height: 320px;
+    }
+    #device-settings-list {
+      width: 90%;
+      max-width: 420px;
+      margin: 0 auto;
+      color: #fff;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .device-settings-item {
+      background: #232323;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .device-settings-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .device-settings-row label {
+      min-width: 80px;
+      color: #bbb;
+      font-size: 0.98rem;
+    }
+    .device-settings-row input[type="text"] {
+      flex: 1;
+      background: #181818;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 1rem;
+    }
+    .device-settings-row select, .device-settings-row input[type="checkbox"] {
+      font-size: 1rem;
+      background: #181818;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    .device-settings-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: orange;
+    }
   </style>
 </head>
 <body>
@@ -727,6 +807,18 @@
         <button class="settings-icon-btn active"><i class="fas fa-sun"></i><span>Auto HDR</span></button>
         <button class="settings-icon-btn"><i class="fas fa-layer-group"></i><span>Interval shoot</span></button>
         <button class="settings-icon-btn"><i class="fas fa-cog"></i><span>Settings</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Device Camera Settings Modal -->
+  <div class="device-settings-modal" id="device-settings-modal">
+    <div class="device-settings-content">
+      <button class="settings-close" id="device-settings-close" title="Close"><i class="fas fa-times"></i></button>
+      <h4 style="color:#fff;text-align:center;margin-bottom:16px;">Device Camera Settings</h4>
+      <div id="device-settings-list"></div>
+      <div style="display:flex;justify-content:center;margin-top:16px;">
+        <button class="save-btn" id="device-settings-save">Save</button>
       </div>
     </div>
   </div>
@@ -1286,6 +1378,144 @@
         resDiv.textContent = `${w} x ${h} (${mp} MP)`;
       } else {
         resDiv.textContent = '';
+      }
+    }
+
+    // Device Camera Settings Modal Logic
+    const deviceSettingsModal = document.getElementById('device-settings-modal');
+    const deviceSettingsClose = document.getElementById('device-settings-close');
+    const deviceSettingsSave = document.getElementById('device-settings-save');
+    const deviceSettingsList = document.getElementById('device-settings-list');
+    const settingsIconBtn = document.querySelector('.settings-icon-btn:last-child');
+
+    let cameraSettings = {};
+
+    // Open device settings modal from settings modal
+    settingsIconBtn.addEventListener('click', () => {
+      settingsModal.classList.remove('active');
+      openDeviceSettingsModal();
+    });
+    deviceSettingsClose.addEventListener('click', () => {
+      deviceSettingsModal.classList.remove('active');
+      settingsModal.classList.add('active');
+    });
+
+    function openDeviceSettingsModal() {
+      enumerateCamerasAndBuildUI();
+      deviceSettingsModal.classList.add('active');
+    }
+
+    // Enumerate cameras and build UI
+    async function enumerateCamerasAndBuildUI() {
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      // Load saved settings
+      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
+      deviceSettingsList.innerHTML = '';
+      for (const device of devices) {
+        // Try to get supported resolutions
+        let resolutions = [{label:'Default', value:''}];
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({video: {deviceId: {exact: device.deviceId}}});
+          const track = stream.getVideoTracks()[0];
+          const caps = track.getCapabilities();
+          if (caps.width && caps.height) {
+            // Build a list of common resolutions within supported range
+            const wmin = caps.width.min, wmax = caps.width.max;
+            const hmin = caps.height.min, hmax = caps.height.max;
+            const common = [
+              [1920,1080],[1280,720],[640,480],[3840,2160],[2560,1440],[1600,1200],[1024,768],[800,600],[320,240]
+            ];
+            for (const [w,h] of common) {
+              if (w >= wmin && w <= wmax && h >= hmin && h <= hmax) {
+                resolutions.push({label:`${w}x${h}`, value:`${w}x${h}`});
+              }
+            }
+            // Add max
+            if (!resolutions.find(r => r.value === `${wmax}x${hmax}`)) {
+              resolutions.unshift({label:`Max (${wmax}x${hmax})`, value:`${wmax}x${hmax}`});
+            }
+          }
+          track.stop();
+        } catch (e) {}
+        // Get saved settings or defaults
+        const saved = cameraSettings[device.deviceId] || {};
+        // Build UI
+        const div = document.createElement('div');
+        div.className = 'device-settings-item';
+        div.innerHTML = `
+          <div class="device-settings-row">
+            <label>Name</label>
+            <input type="text" value="${saved.name || device.label || 'Camera'}" data-key="name">
+          </div>
+          <div class="device-settings-row">
+            <label>Resolution</label>
+            <select data-key="resolution">
+              ${resolutions.map(r => `<option value="${r.value}"${saved.resolution===r.value?' selected':''}>${r.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="device-settings-row">
+            <label>Mirrored</label>
+            <input type="checkbox" data-key="mirrored"${saved.mirrored?' checked':''}>
+          </div>
+          <div class="device-settings-row">
+            <label>Mode</label>
+            <select data-key="mode">
+              <option value="">Default</option>
+              <option value="user"${saved.mode==='user'?' selected':''}>User</option>
+              <option value="environment"${saved.mode==='environment'?' selected':''}>Environment</option>
+            </select>
+          </div>
+        `;
+        // Store deviceId for saving
+        div.dataset.deviceId = device.deviceId;
+        deviceSettingsList.appendChild(div);
+      }
+    }
+
+    // Save device settings
+    deviceSettingsSave.addEventListener('click', () => {
+      // Gather all settings
+      const items = deviceSettingsList.querySelectorAll('.device-settings-item');
+      for (const item of items) {
+        const deviceId = item.dataset.deviceId;
+        const name = item.querySelector('input[data-key="name"]').value;
+        const resolution = item.querySelector('select[data-key="resolution"]').value;
+        const mirrored = item.querySelector('input[data-key="mirrored"]').checked;
+        const mode = item.querySelector('select[data-key="mode"]').value;
+        cameraSettings[deviceId] = { name, resolution, mirrored, mode };
+      }
+      localStorage.setItem('cameraSettings', JSON.stringify(cameraSettings));
+      deviceSettingsModal.classList.remove('active');
+      settingsModal.classList.add('active');
+    });
+
+    // On app start, load settings and apply to camera
+    async function applyCameraSettings(deviceId) {
+      cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
+      const settings = cameraSettings[deviceId];
+      if (!settings) return;
+      // Apply mode, resolution, mirrored
+      let constraints = {
+        video: {
+          deviceId: { exact: deviceId }
+        },
+        audio: false
+      };
+      if (settings.mode) constraints.video.facingMode = { exact: settings.mode };
+      if (settings.resolution) {
+        const [w, h] = settings.resolution.split('x').map(Number);
+        constraints.video.width = { exact: w };
+        constraints.video.height = { exact: h };
+      }
+      // Start camera with these constraints
+      await startCamera(deviceId, settings.mode || undefined);
+      // Mirrored: set a class on video
+      const video = document.getElementById('viewfinder');
+      if (settings.mirrored) {
+        video.style.transform += ' scaleX(-1)';
+      } else {
+        // Remove mirroring if present
+        video.style.transform = video.style.transform.replace(' scaleX(-1)', '');
       }
     }
   </script>
