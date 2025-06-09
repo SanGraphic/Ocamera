@@ -12,6 +12,8 @@
     :root {
       --safe-area-inset-top: env(safe-area-inset-top, 0px);
       --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-area-inset-left: env(safe-area-inset-left, 0px);
+      --safe-area-inset-right: env(safe-area-inset-right, 0px);
     }
     
     * {
@@ -29,6 +31,21 @@
       position: fixed;
       width: 100%;
       height: 100%;
+    }
+    
+    .landscape-mode .rotate-item {
+      transition: transform 0.3s ease;
+    }
+    
+    /* Ensure smooth transitions for orientation changes */
+    .camera-app, .viewfinder-container, .top-bar, .bottom-bar, .controls-bar {
+      transition: all 0.3s ease;
+    }
+    
+    /* Ensure viewfinder text is not rotated in landscape mode */
+    body.landscape-mode .viewfinder-text {
+      transform: translateX(-50%);
+      rotate: none;
     }
 
     .camera-app {
@@ -61,13 +78,164 @@
 
     .viewfinder-container {
       flex: 1;
-      background: #fff;
+      background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       min-height: 0;
       overflow: hidden;
+    }
+    
+    /* Landscape orientation handling */
+    @media (orientation: landscape) {
+      body {
+        /* Add landscape mode class to body for global styles */
+        --rotation-angle: 0deg;
+      }
+      
+      /* Transform camera app layout in landscape mode */
+      body.landscape-mode .camera-app {
+        flex-direction: row;
+      }
+      
+      /* Move top bar to the left side */
+      body.landscape-mode .top-bar {
+        flex-direction: column;
+        width: 60px;
+        height: 100%;
+        padding: calc(16px + var(--safe-area-inset-top)) 8px 8px calc(8px + var(--safe-area-inset-left));
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 20;
+      }
+      
+      /* Move bottom bar to the right side */
+      body.landscape-mode .bottom-bar {
+        flex-direction: column;
+        width: 80px;
+        height: 100%;
+        position: absolute;
+        right: 0;
+        top: 0;
+        padding: calc(16px + var(--safe-area-inset-top)) calc(8px + var(--safe-area-inset-right)) 8px 8px;
+        z-index: 20;
+      }
+      
+      /* Adjust viewfinder container to take full space */
+      body.landscape-mode .viewfinder-container {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+      
+      /* Keep viewfinder text positioned correctly in landscape */
+      body.landscape-mode .viewfinder-text {
+        bottom: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      
+      /* Mode switcher in landscape */
+      body.landscape-mode .mode-switcher {
+        flex-direction: column;
+        height: auto;
+        gap: 12px;
+        width: auto;
+        padding-right: 4px;
+      }
+      
+      /* Bottom controls in landscape */
+      body.landscape-mode .bottom-controls {
+        flex-direction: column;
+        height: auto;
+        gap: 16px;
+        margin-top: auto;
+        margin-bottom: 24px;
+      }
+      
+      /* Controls bar in landscape */
+      body.landscape-mode .controls-bar {
+        position: absolute;
+        top: 0;
+        right: 80px;
+        width: auto;
+        height: 100%;
+        padding: calc(16px + var(--safe-area-inset-top)) 4px 16px 0;
+        z-index: 15;
+      }
+      
+      /* Zoom bar in landscape */
+      body.landscape-mode .zoom-bar {
+        flex-direction: column;
+        width: auto;
+        height: auto;
+        padding: 0 4px;
+      }
+      
+      /* Side buttons in landscape */
+      body.landscape-mode .side-btns {
+        right: 100px;
+        bottom: 16px;
+      }
+      
+      /* Thumbnail in landscape */
+      body.landscape-mode .thumb {
+        order: 3;
+      }
+      
+      /* Shutter button in landscape */
+      body.landscape-mode .shutter-btn {
+        order: 1;
+        margin-bottom: 16px;
+      }
+      
+      /* Switch camera button in landscape */
+      body.landscape-mode .switch-cam-btn {
+        order: 2;
+        margin-bottom: 16px;
+      }
+      
+      /* Timer button in landscape */
+      body.landscape-mode .timer-btn {
+        margin-right: 0;
+        margin-bottom: 8px;
+      }
+      
+      /* Adjustments for smaller screens in landscape */
+      @media (max-height: 450px) {
+        body.landscape-mode .top-bar {
+          width: 50px;
+        }
+        
+        body.landscape-mode .bottom-bar {
+          width: 70px;
+        }
+        
+        body.landscape-mode .shutter-btn {
+          width: clamp(50px, 15vw, 60px);
+          height: clamp(50px, 15vw, 60px);
+        }
+        
+        body.landscape-mode .thumb {
+          width: clamp(40px, 12vw, 48px);
+          height: clamp(40px, 12vw, 48px);
+        }
+        
+        body.landscape-mode .switch-cam-btn {
+          width: clamp(36px, 10vw, 40px);
+          height: clamp(36px, 10vw, 40px);
+        }
+        
+        body.landscape-mode .controls-bar {
+          right: 70px;
+        }
+        
+        body.landscape-mode .side-btns {
+          right: 85px;
+        }
+      }
     }
 
     .viewfinder-text {
@@ -87,7 +255,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      background: #fff;
+      background: #000;
       transform-origin: center center;
       transition: transform 0.2s ease-out;
       position: absolute;
@@ -182,6 +350,36 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    
+    #night-mode-btn.active {
+      background: linear-gradient(135deg, #333, #0072ff);
+      color: yellow;
+    }
+    
+    #night-mode-btn.active i {
+      filter: drop-shadow(0 0 3px rgba(255, 255, 0, 0.7));
+    }
+    
+    .night-mode-indicator {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: yellow;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      display: none;
+      z-index: 5;
+      pointer-events: none;
+    }
+    
+    .night-mode-indicator.active {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .bottom-bar {
@@ -281,6 +479,45 @@
       justify-content: center;
       flex-shrink: 0;
       order: 3;
+    }
+    
+    #night-mode-btn.active {
+      background: linear-gradient(135deg, #333, #0072ff);
+      color: yellow;
+    }
+    
+    #night-mode-btn.active i {
+      filter: drop-shadow(0 0 3px rgba(255, 255, 0, 0.7));
+    }
+    
+    .night-mode-indicator {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: yellow;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      display: none;
+      z-index: 5;
+      pointer-events: none;
+    }
+    
+    .night-mode-indicator.active {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    #flash-btn.active {
+      background: linear-gradient(135deg, #333, #ff7700);
+      color: #ffcc00;
+    }
+    
+    #flash-btn.active i {
+      filter: drop-shadow(0 0 3px rgba(255, 204, 0, 0.7));
     }
 
     @media (max-width: 360px) {
@@ -709,6 +946,59 @@
     video#viewfinder.mirrored {
       transform: translate(-50%, -50%) scaleX(-1) !important;
     }
+
+    /* Landscape orientation handling */
+    @media (orientation: landscape) {
+      body {
+        /* Add landscape mode class to body for global styles */
+        --rotation-angle: 0deg;
+      }
+      
+      body.landscape-mode .camera-app {
+        /* Keep the app layout the same in landscape */
+        flex-direction: column;
+      }
+      
+      /* Rotation for top bar elements */
+      body.landscape-mode .top-bar {
+        padding: calc(16px + var(--safe-area-inset-right)) 16px 16px calc(16px + var(--safe-area-inset-left));
+      }
+      
+      body.landscape-mode .top-bar i.rotate-item {
+        transform: rotate(var(--rotation-angle));
+      }
+      
+      /* Bottom bar and controls in landscape */
+      body.landscape-mode .bottom-bar {
+        padding: 8px 16px calc(16px + var(--safe-area-inset-left)) calc(16px + var(--safe-area-inset-right));
+      }
+      
+      body.landscape-mode .mode-switcher span.rotate-item {
+        transform: rotate(var(--rotation-angle));
+      }
+      
+      /* Side buttons rotation */
+      body.landscape-mode .side-btns {
+        /* Adjusted position for landscape */
+        right: 16px;
+        bottom: 80px;
+      }
+      
+      body.landscape-mode .side-btns button i.rotate-item {
+        transform: rotate(var(--rotation-angle));
+      }
+      
+      /* Control buttons rotation */
+      body.landscape-mode .switch-cam-btn i.rotate-item,
+      body.landscape-mode .zoom-bar span.rotate-item {
+        transform: rotate(var(--rotation-angle));
+      }
+      
+      /* Timer button rotation */
+      body.landscape-mode .timer-btn.rotate-item {
+        transform: rotate(var(--rotation-angle));
+      }
+    }
   </style>
 </head>
 <body>
@@ -726,9 +1016,19 @@
     <div class="viewfinder-container position-relative">
       <video id="viewfinder" autoplay playsinline></video>
       <div class="viewfinder-text">Viewfinder</div>
+      <div class="night-mode-indicator">
+        <i class="fas fa-moon"></i> Night Mode
+      </div>
       <div class="side-btns">
-        <button id="color-btn" title="Color"><i class="fas fa-adjust"></i></button>
-        <button id="focus-btn" title="Focus"><i class="fas fa-bullseye"></i></button>
+        <button id="flash-btn" title="Toggle Flash">
+          <i class="fas fa-bolt"></i>
+        </button>
+        <button id="night-mode-btn" title="Night Mode">
+          <i class="fas fa-moon"></i>
+        </button>
+        <button id="filter-btn" title="Filters">
+          <i class="fas fa-magic"></i>
+        </button>
       </div>
     </div>
     <!-- Controls Bar -->
@@ -852,11 +1152,13 @@
     let isDigitalZoom = false;
     let recentPhotos = [];
     let selectedPhoto = null;
-    let aspectRatio = '4:3';
+    let aspectRatio = '3:4';
     let timerSetting = 'off';
     let isHDR = false;
     let hdrExposures = [-2, 0, 2]; // EV values for HDR capture
     let isProcessingHDR = false;
+    let isLandscape = false; // Track device orientation
+    let isNightMode = false; // Track night mode state
 
     // Get all video input devices
     async function getCameras() {
@@ -1356,11 +1658,22 @@
       const videoH = video.videoHeight;
       let outW = videoW;
       let outH = videoH;
+      
+      // Check if in landscape mode - if so, invert the aspect ratios
+      const isLandscapeMode = document.body.classList.contains('landscape-mode');
+      let currentAspectRatio = aspectRatio;
+      
+      // For landscape mode, we invert the aspect ratios (except for 1:1 which stays the same)
+      if (isLandscapeMode) {
+        if (currentAspectRatio === '3:4') currentAspectRatio = '4:3';
+        else if (currentAspectRatio === '9:16') currentAspectRatio = '16:9';
+      }
+      
       // Adjust for aspect ratio selection
-      if (aspectRatio === '1:1') {
+      if (currentAspectRatio === '1:1') {
         const minDim = Math.min(videoW, videoH);
         outW = outH = minDim;
-      } else if (aspectRatio === '9:16') {
+      } else if (currentAspectRatio === '9:16') {
         if (videoW / videoH > 9/16) {
           outH = videoH;
           outW = Math.round(videoH * 9 / 16);
@@ -1368,7 +1681,15 @@
           outW = videoW;
           outH = Math.round(videoW * 16 / 9);
         }
-      } else if (aspectRatio === '3:4') {
+      } else if (currentAspectRatio === '16:9') {
+        if (videoW / videoH > 16/9) {
+          outH = videoH;
+          outW = Math.round(videoH * 16 / 9);
+        } else {
+          outW = videoW;
+          outH = Math.round(videoW * 9 / 16);
+        }
+      } else if (currentAspectRatio === '3:4') {
         if (videoW / videoH > 3/4) {
           outH = videoH;
           outW = Math.round(videoH * 3 / 4);
@@ -1376,14 +1697,24 @@
           outW = videoW;
           outH = Math.round(videoW * 4 / 3);
         }
+      } else if (currentAspectRatio === '4:3') {
+        if (videoW / videoH > 4/3) {
+          outH = videoH;
+          outW = Math.round(videoH * 4 / 3);
+        } else {
+          outW = videoW;
+          outH = Math.round(videoW * 3 / 4);
+        }
       } // else 'full' uses full videoW/videoH
+      
       const canvas = document.createElement('canvas');
       canvas.width = outW;
       canvas.height = outH;
       const ctx = canvas.getContext('2d');
+      
       // Calculate cropping for aspect ratio
       let sx = 0, sy = 0, sw = videoW, sh = videoH;
-      if (aspectRatio === '1:1') {
+      if (currentAspectRatio === '1:1') {
         if (videoW > videoH) {
           sx = Math.floor((videoW - videoH) / 2);
           sw = sh = videoH;
@@ -1391,7 +1722,7 @@
           sy = Math.floor((videoH - videoW) / 2);
           sw = sh = videoW;
         }
-      } else if (aspectRatio === '9:16') {
+      } else if (currentAspectRatio === '9:16') {
         if (videoW / videoH > 9/16) {
           sx = Math.floor((videoW - videoH * 9 / 16) / 2);
           sw = Math.floor(videoH * 9 / 16);
@@ -1399,7 +1730,15 @@
           sy = Math.floor((videoH - videoW * 16 / 9) / 2);
           sh = Math.floor(videoW * 16 / 9);
         }
-      } else if (aspectRatio === '3:4') {
+      } else if (currentAspectRatio === '16:9') {
+        if (videoW / videoH > 16/9) {
+          sx = Math.floor((videoW - videoH * 16 / 9) / 2);
+          sw = Math.floor(videoH * 16 / 9);
+        } else {
+          sy = Math.floor((videoH - videoW * 9 / 16) / 2);
+          sh = Math.floor(videoW * 9 / 16);
+        }
+      } else if (currentAspectRatio === '3:4') {
         if (videoW / videoH > 3/4) {
           sx = Math.floor((videoW - videoH * 3 / 4) / 2);
           sw = Math.floor(videoH * 3 / 4);
@@ -1407,7 +1746,16 @@
           sy = Math.floor((videoH - videoW * 4 / 3) / 2);
           sh = Math.floor(videoW * 4 / 3);
         }
+      } else if (currentAspectRatio === '4:3') {
+        if (videoW / videoH > 4/3) {
+          sx = Math.floor((videoW - videoH * 4 / 3) / 2);
+          sw = Math.floor(videoH * 4 / 3);
+        } else {
+          sy = Math.floor((videoH - videoW * 3 / 4) / 2);
+          sh = Math.floor(videoW * 3 / 4);
+        }
       }
+      
       // Digital zoom cropping
       if (isDigitalZoom && currentZoom !== 1) {
         const scale = currentZoom;
@@ -1418,11 +1766,13 @@
         sw = zoomedW;
         sh = zoomedH;
       }
+      
       // Mirrored: flip canvas horizontally if needed
       let mirrored = false;
       const deviceId = currentDeviceId;
       cameraSettings = JSON.parse(localStorage.getItem('cameraSettings') || '{}');
       if (cameraSettings[deviceId] && cameraSettings[deviceId].mirrored) mirrored = true;
+      
       if (mirrored) {
         ctx.save();
         ctx.translate(outW, 0);
@@ -1432,6 +1782,83 @@
       } else {
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
       }
+      
+      // Apply night mode processing if enabled
+      if (isNightMode) {
+        // Get image data for processing
+        const imageData = ctx.getImageData(0, 0, outW, outH);
+        const data = imageData.data;
+        
+        // Night mode processing parameters
+        const brightness = 1.2;      // Increase brightness
+        const contrast = 1.3;        // Increase contrast
+        const denoiseRadius = 1;     // Denoising radius
+        const sigmaSpatial = 2;      // Spatial sigma for bilateral filter
+        const sigmaColor = 20;       // Color sigma for bilateral filter
+        const enhanceDetails = 0.8;  // Reduced detail enhancement
+        
+        for (let y = 0; y < outH; y++) {
+            for (let x = 0; x < outW; x++) {
+                const i = (y * outW + x) * 4;
+                
+                // Bilateral filter denoising
+                let r = 0, g = 0, b = 0;
+                let weightSum = 0;
+                
+                for (let dy = -denoiseRadius; dy <= denoiseRadius; dy++) {
+                    for (let dx = -denoiseRadius; dx <= denoiseRadius; dx++) {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        
+                        if (nx >= 0 && nx < outW && ny >= 0 && ny < outH) {
+                            const ni = (ny * outW + nx) * 4;
+                            const spatialDist = Math.sqrt(dx*dx + dy*dy);
+                            const colorDistR = data[i] - data[ni];
+                            const colorDistG = data[i+1] - data[ni+1];
+                            const colorDistB = data[i+2] - data[ni+2];
+                            const colorDist = Math.sqrt(colorDistR*colorDistR + colorDistG*colorDistG + colorDistB*colorDistB);
+                            const weight = Math.exp( - (spatialDist*spatialDist) / (2*sigmaSpatial*sigmaSpatial) - (colorDist*colorDist) / (2*sigmaColor*sigmaColor) );
+                            r += data[ni] * weight;
+                            g += data[ni+1] * weight;
+                            b += data[ni+2] * weight;
+                            weightSum += weight;
+                        }
+                    }
+                }
+                
+                if (weightSum > 0) {
+                    data[i] = r / weightSum;
+                    data[i+1] = g / weightSum;
+                    data[i+2] = b / weightSum;
+                }
+                
+                // Apply brightness and contrast adjustments
+                for (let c = 0; c < 3; c++) {
+                    let val = data[i + c];
+                    val = (val - 128) * contrast + 128;  // Contrast
+                    val = val * brightness;              // Brightness
+                    data[i + c] = Math.max(0, Math.min(255, val));
+                }
+                
+                // Detail enhancement (reduced strength)
+                if (enhanceDetails > 1) {
+                    for (let c = 0; c < 3; c++) {
+                        const curr = data[i + c];
+                        const top = data[i - outW * 4 + c];
+                        const bottom = data[i + outW * 4 + c];
+                        const left = data[i - 4 + c];
+                        const right = data[i + 4 + c];
+                        const edge = Math.abs(curr - top) + Math.abs(curr - bottom) + Math.abs(curr - left) + Math.abs(curr - right);
+                        if (edge > 10) {  // Lower threshold
+                            data[i + c] = Math.max(0, Math.min(255, curr + (edge * (enhanceDetails - 1) / 4)));
+                        }
+                    }
+                }
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+      
       canvas.toBlob(blob => {
         photoBlob = blob;
         addToRecents(blob);
@@ -1658,9 +2085,19 @@
       video.style.width = '100%';
       video.style.height = '100%';
       
+      // Check if we're in landscape mode - if so, invert the aspect ratio
+      const isLandscapeMode = document.body.classList.contains('landscape-mode');
+      let currentAspectRatio = aspectRatio;
+      
+      // For landscape mode, we invert the aspect ratios (except for 1:1 which stays the same)
+      if (isLandscapeMode) {
+        if (currentAspectRatio === '3:4') currentAspectRatio = '4:3';
+        else if (currentAspectRatio === '9:16') currentAspectRatio = '16:9';
+      }
+      
       let cropWidth, cropHeight, leftOffset, topOffset;
       
-      switch (aspectRatio) {
+      switch (currentAspectRatio) {
         case '1:1':
           ratio = 1;
           
@@ -1676,10 +2113,10 @@
           
           // Create overlay for dark areas
           overlay.innerHTML = `
-            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${squareSize}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${squareSize}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${squareSize}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${squareSize}px; background:#000;"></div>
           `;
           break;
           
@@ -1707,10 +2144,41 @@
           
           // Create overlay for dark areas
           overlay.innerHTML = `
-            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+          `;
+          break;
+          
+        case '4:3':
+          ratio = 4/3;
+          
+          // Calculate 4:3 dimensions that fit in the container (landscape)
+          if (containerWidth / containerHeight > 4/3) {
+            // Container is wider than 4:3
+            cropHeight = containerHeight;
+            cropWidth = cropHeight * (4/3);
+          } else {
+            // Container is taller than 4:3
+            cropWidth = containerWidth;
+            cropHeight = cropWidth * (3/4);
+          }
+          
+          leftOffset = (containerWidth - cropWidth) / 2;
+          topOffset = (containerHeight - cropHeight) / 2;
+          
+          // Apply the actual crop to video
+          video.style.width = cropWidth + 'px';
+          video.style.height = cropHeight + 'px';
+          video.style.objectFit = 'cover';
+          
+          // Create overlay for dark areas
+          overlay.innerHTML = `
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
           `;
           break;
           
@@ -1738,10 +2206,41 @@
           
           // Create overlay for dark areas
           overlay.innerHTML = `
-            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
-            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:rgba(0,0,0,0.7);"></div>
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+          `;
+          break;
+          
+        case '16:9':
+          ratio = 16/9;
+          
+          // Calculate 16:9 dimensions that fit in the container (landscape)
+          if (containerWidth / containerHeight > 16/9) {
+            // Container is wider than 16:9
+            cropHeight = containerHeight;
+            cropWidth = cropHeight * (16/9);
+          } else {
+            // Container is taller than 16:9
+            cropWidth = containerWidth;
+            cropHeight = cropWidth * (9/16);
+          }
+          
+          leftOffset = (containerWidth - cropWidth) / 2;
+          topOffset = (containerHeight - cropHeight) / 2;
+          
+          // Apply the actual crop to video
+          video.style.width = cropWidth + 'px';
+          video.style.height = cropHeight + 'px';
+          video.style.objectFit = 'cover';
+          
+          // Create overlay for dark areas
+          overlay.innerHTML = `
+            <div style="position:absolute; top:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; bottom:0; left:0; width:100%; height:${topOffset}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; left:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
+            <div style="position:absolute; top:${topOffset}px; right:0; width:${leftOffset}px; height:${cropHeight}px; background:#000;"></div>
           `;
           break;
           
@@ -1754,7 +2253,7 @@
       }
       
       // Add overlay to container if not 'full'
-      if (aspectRatio !== 'full') {
+      if (currentAspectRatio !== 'full') {
         container.appendChild(overlay);
         
         // Center the video element within the container
@@ -1788,7 +2287,7 @@
         resDiv.style.position = 'absolute';
         resDiv.style.bottom = '8px';
         resDiv.style.right = '16px';
-        resDiv.style.background = 'rgba(0,0,0,0.7)';
+        resDiv.style.background = '#000';
         resDiv.style.color = '#fff';
         resDiv.style.fontSize = '1rem';
         resDiv.style.padding = '4px 10px';
@@ -1921,7 +2420,7 @@
         featDiv.style.position = 'absolute';
         featDiv.style.bottom = '40px';
         featDiv.style.right = '16px';
-        featDiv.style.background = 'rgba(0,0,0,0.7)';
+        featDiv.style.background = '#000';
         featDiv.style.color = '#fff';
         featDiv.style.fontSize = '0.95rem';
         featDiv.style.padding = '3px 10px';
@@ -1942,7 +2441,7 @@
         statusDiv.style.top = '50%';
         statusDiv.style.left = '50%';
         statusDiv.style.transform = 'translate(-50%, -50%)';
-        statusDiv.style.background = 'rgba(0,0,0,0.7)';
+        statusDiv.style.background = '#000';
         statusDiv.style.color = '#fff';
         statusDiv.style.padding = '12px 24px';
         statusDiv.style.borderRadius = '8px';
@@ -1972,6 +2471,105 @@
         timer = parseInt(timerSetting, 10);
       }
     }
+    
+             // Handle device orientation changes
+    function handleOrientationChange() {
+      // Detect landscape mode using both matchMedia and window dimensions
+      const isMediaLandscape = window.matchMedia("(orientation: landscape)").matches;
+      const isDimensionsLandscape = window.innerWidth > window.innerHeight;
+      const isLandscapeNow = isMediaLandscape || isDimensionsLandscape;
+      
+      if (isLandscapeNow !== isLandscape) {
+        isLandscape = isLandscapeNow;
+        
+        if (isLandscape) {
+          document.body.classList.add('landscape-mode');
+          console.log('Entered landscape mode');
+        } else {
+          document.body.classList.remove('landscape-mode');
+          console.log('Exited landscape mode');
+        }
+        
+        // Update aspect ratio to maintain proper crop in new orientation
+        setTimeout(() => {
+          updateAspectRatio();
+        }, 300); // Short delay to let the UI update first
+      }
+    }
+    
+    // Add rotate-item class to elements that need to rotate in landscape mode
+    function setupRotatableElements() {
+      // Top bar icons
+      document.querySelectorAll('.top-bar i').forEach(icon => {
+        icon.classList.add('rotate-item');
+      });
+      
+      // Mode switcher text
+      document.querySelectorAll('.mode-switcher span').forEach(span => {
+        span.classList.add('rotate-item');
+      });
+      
+      // Bottom controls icons
+      document.querySelector('.switch-cam-btn i').classList.add('rotate-item');
+      
+      // Side buttons icons
+      document.querySelectorAll('.side-btns button i').forEach(icon => {
+        icon.classList.add('rotate-item');
+      });
+      
+      // Timer button
+      document.getElementById('timer-btn').classList.add('rotate-item');
+      
+      // Zoom bar text
+      document.querySelectorAll('.zoom-bar span').forEach(span => {
+        span.classList.add('rotate-item');
+      });
+      
+      // Do not rotate viewfinder text
+      // document.querySelector('.viewfinder-text').classList.add('rotate-item');
+    }
+    
+    // Listen for orientation changes
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
+    
+    // Initial setup
+    document.addEventListener('DOMContentLoaded', () => {
+      setupRotatableElements();
+      handleOrientationChange();
+    });
+
+    // Flash toggle
+    const flashBtn = document.getElementById('flash-btn');
+    flashBtn.addEventListener('click', async () => {
+      if (!currentStream) return;
+      const track = currentStream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities();
+      if (capabilities.torch) {
+        const settings = track.getSettings();
+        try {
+          await track.applyConstraints({
+            advanced: [{ torch: !settings.torch }]
+          });
+          const newSettings = track.getSettings();
+          flashBtn.classList.toggle('active', newSettings.torch);
+        } catch (err) {
+          alert('Failed to toggle flash: ' + err.message);
+        }
+      } else {
+        alert('Flash is not supported on this device');
+      }
+    });
+    
+    // Night mode toggle
+    const nightModeBtn = document.getElementById('night-mode-btn');
+    const nightModeIndicator = document.querySelector('.night-mode-indicator');
+    
+    nightModeBtn.addEventListener('click', () => {
+      isNightMode = !isNightMode;
+      nightModeBtn.classList.toggle('active', isNightMode);
+      nightModeIndicator.classList.toggle('active', isNightMode);
+    });
   </script>
 </body>
 </html>
